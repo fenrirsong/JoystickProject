@@ -7,7 +7,7 @@ In "Instructable Example" I used an example to figure out how to get a Windows F
 
 In "XBoxStage-master", I have taken code written by @jaybo and modified it so that I have an XBox controller controlling an Arduino (Uno on COM5 at baud = 9600) using Visual Studio C#, WPF, and SharpDX.XInput.  In the future, I will add control over 3 Zaber actuators, and 1 Thorlabs actuator.  In the farther future, I will add a finite state machine to toggle between different parts of the process of picking up a section and placing it on the grid.
 
-Eventually, I'll do some work to utilizes code written by @mdjarv to use a HOTAS Warthog joystick to control 
+Eventually, I'll do some work to utilize code written by @mdjarv to use a HOTAS Warthog joystick to control 
 the series of 3 Zaber actuators, 1 Thorlabs Actuator, and Arduino.  
 
 *****This project is in progress*****
