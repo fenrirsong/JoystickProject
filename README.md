@@ -5,6 +5,8 @@ This repo has a few subprojects within it.  The purpose of this project is to de
 
 In "Instructable Example" I used an example to figure out how to get a Windows Forms C# project to talk to my Arduino to turn on an LED.  No big deal.
 
+In "ConsoleZaberCommanderASCII" I built some code to deal with "deadzones" or places I don't want our expensive equipment to run into.  It *should* avoid these deadzones, and from the tests I've run, it does, with the exception of moving to the opposite side of an obstacle.  I haven't built that part of the code because I think it will be outside the scope of this entire project.  Our deadzones are fairly large objects that can be approximated with a few rectangular areas.
+
 In "XBoxStage-master", I have taken code written by @jaybo and modified it so that I have an XBox controller controlling an Arduino (Uno on COM5 at baud = 9600) using Visual Studio C#, WPF, and SharpDX.XInput.  In the future, I will add control over 3 Zaber actuators, and 1 Thorlabs actuator.  In the farther future, I will add a finite state machine to toggle between different parts of the process of picking up a section and placing it on the grid.
 
 Eventually, I'll do some work to utilize code written by @mdjarv to use a HOTAS Warthog joystick to control 
