@@ -21,12 +21,12 @@ using System.Runtime;
 
 using SharpDX.XInput;
 
-using Thorlabs.MotionControl.DeviceManagerCLI;
+/*ing Thorlabs.MotionControl.DeviceManagerCLI;
 using Thorlabs.MotionControl.GenericMotorCLI;
 using Thorlabs.MotionControl.GenericMotorCLI.ControlParameters; 
 using Thorlabs.MotionControl.GenericMotorCLI.AdvancedMotor;
 using Thorlabs.MotionControl.GenericMotorCLI.Settings;
-using Thorlabs.MotionControl.KCube.DCServoCLI;
+using Thorlabs.MotionControl.KCube.DCServoCLI;*/
 
 using Zaber;
 using Zaber.PlugIns;
@@ -44,7 +44,7 @@ namespace XBoxStage
         private string _leftAxis;
         private string _rightAxis;
         private string _buttons;
-        static public int POLL_RATE = 1; // in ms 
+        static public int POLL_RATE = 30; //in ms NOTE: XBox is limited to 30ms min
         public int XBOX_MAX_RANGE = 32767;
 
         // XBox
@@ -71,20 +71,21 @@ namespace XBoxStage
         public int[] YButtonPosition = new int[3];
         public int[] BButtonPosition = new int[3];
         public double joystickVelocityModulator = 5.0;
+        public int rDeadZone = Gamepad.RightThumbDeadZone; //Might not work here...
+        public int lDeadZone = Gamepad.LeftThumbDeadZone;
+        public bool LeftLastStateDeadZone = false;
+        public bool LeftCurrentStateDeadZone = false;
+        public bool RightLastStateDeadZone = false;
+        public bool RightCurrentStateDeadZone = false;
 
         // Thorlabs Actuator -- may need to initialize the necessary vars here
         // position and velocity are just guesses at suitable numbers -- needs
         //to be played with in order to get a good value, but must be in decimal format
-        //public decimal thorPosition = decimal.Parse("2");
-        //public decimal thorVelocity = decimal.Parse("2");
         // This is our guy's serial number -- will not be the same for others
-        //public string serialNo = "27000117";
-        public KCubeDCServo thorDevice;
+        /*blic KCubeDCServo thorDevice;
         public decimal thorPosition = 17m;
-        // call GetMotorConfiguration on the device to initialize the DeviceUnitConverter object required for real world unit parameters  
-        //MotorConfiguration motorSettings = thorDevice.GetMotorConfiguration(serialNo);
-        //BrushlessMotorSettings currentDeviceSettings = thorDevice.MotorDeviceSettings as BrushlessMotorSettings;
-
+        public string serialNo = "27000117";*/
+        
         // Arduino
         public SerialPort Arduino = new SerialPort();
 
@@ -121,33 +122,6 @@ namespace XBoxStage
         // ----------------------------------------------------------------------
         // Properties which support binding in the UI
         // ----------------------------------------------------------------------
-        private double _posX;
-        public double PosX
-        {
-            get
-            {
-                return _posX;
-            }
-            set
-            {
-                _posX = value;
-                OnPropertyChanged();
-            }
-        }
-        private double _posY;
-        public double PosY
-        {
-            get
-            {
-                return _posY;
-            }
-            set
-            {
-                _posY = value;
-                OnPropertyChanged();
-            }
-        }
-
         private bool _stageInitialized = false;
         public bool StageInitialized        {
             get
@@ -294,10 +268,9 @@ namespace XBoxStage
             axisZ = new ZaberAsciiAxis(zaberPort, 4, 1); // device 4, z axis
             //*********bool isItNoFlyZone = false; *****//
 
-            // Thorlabs Variables -- may need some experimenting with
-            string serialNo = "27000117";
 
-            // See if Thorlabs guy exists
+            // Open Thorlabs Actuator
+            /*
             try
             {
                 DeviceManagerCLI.BuildDeviceList();
@@ -365,11 +338,14 @@ namespace XBoxStage
             thorDevice.StartPolling(250);
             // call GetMotorConfiguration on the device to initialize the DeviceUnitConverter object required for real world unit parameters  
             MotorConfiguration motorSettings = thorDevice.GetMotorConfiguration(serialNo);
-            BrushlessMotorSettings currentDeviceSettings = thorDevice.MotorDeviceSettings as BrushlessMotorSettings;
+            //might be useful in the future, but, currently not that useful, and not setup
+            //for a DC servo, which is what we have...
+            //BrushlessMotorSettings currentDeviceSettings = thorDevice.MotorDeviceSettings as BrushlessMotorSettings; //
 
             // display info about device     
             DeviceInfo deviceInfo = thorDevice.GetDeviceInfo();
             Console.WriteLine("Device {0} = {1}", deviceInfo.SerialNumber, deviceInfo.Name);
+            */
 
             // This guy does the gamepad polling every however many ms you want it to. 
             // The higher the sampling rate, the more likely it'll bork. YOU'VE BEEN WARNED!!
@@ -377,6 +353,8 @@ namespace XBoxStage
             _timer.Tick += _timer_Tick;
             _timer.Start();
 
+            // Make sure that XBox stuff is open, assign it deadzones
+            
             // If the controller was not assigned to player One during initialization
             // attempt to connect to a player port
             if (!m_xbox.IsConnected)
@@ -401,7 +379,7 @@ namespace XBoxStage
                 zaberStop(2);
                 zaberStop(3);
                 zaberStop(4);
-                thorDevice.StopImmediate();
+                /*thorDevice.StopImmediate();*/
             };
             // Do something for this button being held
             OnXBoxGamepadButtonPressAOneShot += (s, e) =>
@@ -488,8 +466,7 @@ namespace XBoxStage
             OnXBoxGamepadButtonPressShoulderRight += (s, e) =>
             {
                 Debug.WriteLine("ButtonShoulderRight");
-                //thorPosition += .2m;
-                thorMove(thorDevice, MotorDirection.Forward);
+                /*thorMove(thorDevice, MotorDirection.Forward);*/
             };
             OnXBoxGamepadButtonPressShoulderRightOneShot += (s, e) =>
             {
@@ -499,8 +476,7 @@ namespace XBoxStage
             OnXBoxGamepadButtonPressShoulderLeft += (s, e) =>
             {
                 Debug.WriteLine("ButtonShoulderLeft");
-                //thorPosition -= .2m;
-                thorMove(thorDevice, MotorDirection.Backward);
+                /*thorMove(thorDevice, MotorDirection.Backward);*/
             };
             OnXBoxGamepadButtonPressShoulderLeftOneShot += (s, e) =>
             {
@@ -552,6 +528,8 @@ namespace XBoxStage
             if ((m_xbox == null) || !m_xbox.IsConnected) return;
             m_xboxStateLast = m_xboxState;
             m_xboxState = m_xbox.GetState();
+            LeftLastStateDeadZone = LeftCurrentStateDeadZone;
+            RightLastStateDeadZone = RightCurrentStateDeadZone;
 
             // Event handlers for buttons being pushed
             // Classic Buttons
@@ -588,8 +566,6 @@ namespace XBoxStage
             if (ButtonPushed(GamepadButtonFlags.B) && ButtonPushed(GamepadButtonFlags.DPadUp)) zaberSetCurrentPosTo(BButtonPosition);
             if (ButtonPushed(GamepadButtonFlags.X) && ButtonPushed(GamepadButtonFlags.DPadUp)) zaberSetCurrentPosTo(XButtonPosition);
             if (ButtonPushed(GamepadButtonFlags.Y) && ButtonPushed(GamepadButtonFlags.DPadUp)) zaberSetCurrentPosTo(YButtonPosition);
-            //return !m_xboxStateLast.Gamepad.Buttons.HasFlag(button) && m_xboxState.Gamepad.Buttons.HasFlag(button);
-            thorTurnOffDevice();
 
             // Do the triggers and shoulders
             var RTrig = m_xboxState.Gamepad.RightTrigger;
@@ -600,16 +576,18 @@ namespace XBoxStage
             int RY = m_xboxState.Gamepad.RightThumbY;
             int LX = m_xboxState.Gamepad.LeftThumbX;
             int LY = m_xboxState.Gamepad.LeftThumbY;
+            double x = 0;
+            double y = 0;
 
             //determine how far the controller is pushed
             double Lmag = Math.Sqrt(LX * LX + LY * LY);
             double Rmag = Math.Sqrt(RX * RX + RY * RY);
 
             //determine the direction the controller is pushed
-            double normalizedLX = LX / (32767); //normalize to total range
-            double normalizedLY = LY / (32767); //normalize to total range
-            double normalizedRX = RX / (32767);
-            double normalizedRY = RY / (32767);
+            double normalizedLX = LX / (XBOX_MAX_RANGE); //normalize to total range
+            double normalizedLY = LY / (XBOX_MAX_RANGE); //normalize to total range
+            double normalizedRX = RX / (XBOX_MAX_RANGE);
+            double normalizedRY = RY / (XBOX_MAX_RANGE);
 
             var normalizedLmag = 0.0;
             var normalizedRmag = 0.0;
@@ -622,58 +600,90 @@ namespace XBoxStage
             if (RTrig != 0) Debug.WriteLine("RTrig value = \"{0}\"", RTrig);
             if (LTrig != 0) Debug.WriteLine("LTrig value = \"{0}\"", LTrig);
 
-            if (Lmag > Gamepad.LeftThumbDeadZone)
+            /************************CODE TO TEST ******************************/
+            /*if (!m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.LeftShoulder) && m_xboxStateLast.Gamepad.Buttons.HasFlag(GamepadButtonFlags.LeftShoulder))
             {
+                thorDevice.Stop(200);
+            }
+
+            if (!m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.RightShoulder) && m_xboxStateLast.Gamepad.Buttons.HasFlag(GamepadButtonFlags.RightShoulder))
+            {
+                thorDevice.Stop(200);
+            }*/
+            /************************END CODE TO TEST **************************/
+
+            if (Lmag > lDeadZone)
+            {
+                //avoid nans
+                x = (LX == 0) ? 1 : Convert.ToDouble(LX);
+                y = (LY == 0) ? 1 : Convert.ToDouble(LY);
+                double ratio = Math.Abs(x / y);
+
+                LeftCurrentStateDeadZone = false;
                 //clip the Lmag at its expected maximum value
-                if (Lmag > 32767) Lmag = 32767;
+                if (Lmag > XBOX_MAX_RANGE) Lmag = XBOX_MAX_RANGE;
 
                 //adjust Lmag relative to the end of the dead zone
-                Lmag -= Gamepad.LeftThumbDeadZone;
+                Lmag -= lDeadZone;
 
                 //optionally normalize the Lmag with respect to its expected range
                 //giving a Lmag value of 0.0 to 1.0
-                normalizedLmag = Lmag / (32767 - Gamepad.LeftThumbDeadZone);
+                normalizedLmag = Lmag / (XBOX_MAX_RANGE - lDeadZone);
 
                 //send the LX and LY values to move calculating function
-                zaberMoveVelocity(2, LX, true);
-                zaberMoveVelocity(3, -LY, true);
+                /** previous zaberMoveVelocity has no ratio or normalizedmag**/
+                if (Math.Abs(LX) > lDeadZone) zaberMoveVelocity(2, LX, ratio, normalizedLmag, true);
+                if (Math.Abs(LY) > lDeadZone) zaberMoveVelocity(3, -LY, (1/ratio), normalizedLmag, true);
            
             }
             else //if the controller is in the deadzone zero out the Lmag
             {
+                LeftCurrentStateDeadZone = true;
                 Lmag = 0.0;
                 normalizedLmag = 0.0;
-                zaberStop(2);
-                zaberStop(3);
+
+                if (LeftLastStateDeadZone == false)
+                {
+                    zaberStop(2);
+                    zaberStop(3);
+                }
             }
 
             //check if the controller is outside a circular dead zone for Right Thumb
-            if (Rmag > Gamepad.RightThumbDeadZone)
+            if (Rmag > rDeadZone)
             {
+                x = (RX == 0) ? 1 : Convert.ToDouble(RX);
+                y = (RY == 0) ? 1 : Convert.ToDouble(RY);
+                double ratio = Math.Abs(x / y);
+
+                RightCurrentStateDeadZone = false;
                 //clip the Rmag at its expected maximum value
-                if (Rmag > 32767) Rmag = 32767;
+                if (Rmag > XBOX_MAX_RANGE) Rmag = XBOX_MAX_RANGE;
 
                 //adjust Rmag relative to the end of the dead zone
-                Rmag -= Gamepad.RightThumbDeadZone;
+                Rmag -= rDeadZone;
 
                 //optionally normalize the Rmag with respect to its expected range
                 //giving a Rmag value of 0.0 to 1.0
-                normalizedRmag = Rmag / (32767 - Gamepad.RightThumbDeadZone);
-                zaberMoveVelocity(4, RY, false);
+                normalizedRmag = Rmag / (XBOX_MAX_RANGE - rDeadZone);
+                if (Math.Abs(RY) > rDeadZone) zaberMoveVelocity(4, -RY, (1/ratio), normalizedRmag, false);
             }
             else //if the controller is in the deadzone zero out the Rmag
             {
+                RightCurrentStateDeadZone = true;
                 Rmag = 0.0;
                 normalizedRmag = 0.0;
-                zaberStop(4);
+                if (RightLastStateDeadZone == false)
+                {
+                    zaberStop(4);
+                }
             }
-
         }
 
         // ----------------------------------------------------------------------
         // Thorlabs KCube DC Servo Functions
         // ----------------------------------------------------------------------
-        public static void thorMove(IGenericAdvancedMotor device, MotorDirection direction/*decimal position*/ )
+        /*public static void thorMove(IGenericAdvancedMotor device, MotorDirection direction )
         {
             try
             {
@@ -685,15 +695,7 @@ namespace XBoxStage
                 Console.WriteLine("Failed to move to position");
                 return;
             }
-        }
-
-        public void thorTurnOffDevice(IGenericAdvancedMotor device, GamepadButtonFlags button)
-        {
-            if (m_xboxStateLast.Gamepad.Buttons.HasFlag(button) && !m_xboxState.Gamepad.Buttons.HasFlag(button))
-            {
-                thorDevice.Stop(20);
-            }
-        }
+        }*/
 
         // ----------------------------------------------------------------------
         // Arduino Functions
@@ -726,13 +728,14 @@ namespace XBoxStage
         // ----------------------------------------------------------------------
         // Zaber Functions
         // ----------------------------------------------------------------------
-        void zaberMoveVelocity(int device, int joyValue, bool left)
+        void zaberMoveVelocity(int device, int joyValue, double ratio, double normedMag, bool left)
         {
             string command = "";
             int vel = 0;
             int deadzone = 0;
-            if (left) deadzone = Gamepad.LeftThumbDeadZone;
-            else deadzone = Gamepad.RightThumbDeadZone;
+            if (left) deadzone = lDeadZone;
+            else deadzone = rDeadZone;
+            if (ratio > 1) ratio = 1;
             double normedJoy = 0.0;
             int maxspeed = 0;
             switch (device)
@@ -748,29 +751,23 @@ namespace XBoxStage
                     break;
             }
 
-            //set the maxSpeed for all axises
-            command = "/set maxspeed " + maxspeed;
+            // normedJoy is a percentage of the total range outside of the deadzone
+            // it will always be positive
+            normedJoy = Convert.ToDouble(Math.Abs(joyValue) - deadzone) / Convert.ToDouble(XBOX_MAX_RANGE - deadzone);
+            if (normedJoy > 1.0) normedJoy = 1.0;
+            // modulate input joystick value so that it maps to a normalilzed exp
+            // 888 this is new ratio code to try...
+            normedJoy *= ratio;
+            normedJoy = (Math.Exp(joystickVelocityModulator * normedJoy) - 1) / Math.Exp(joystickVelocityModulator);
+            /**normedJoy = normedJoy * Convert.ToDouble(maxspeed);**/
+            normedJoy = normedJoy * normedMag * Convert.ToDouble(maxspeed);
+            vel = (joyValue > 0) ? Convert.ToInt32(normedJoy) : Convert.ToInt32(-normedJoy);
+            command = "/" + device + " 1 move vel " + Convert.ToString(vel) + "\r\n";
             zaberPort.Write(command);
-
-            if (Math.Abs(joyValue) > deadzone)
-            {
-                command = "";
-                normedJoy = Convert.ToDouble(joyValue) / Convert.ToDouble(XBOX_MAX_RANGE - deadzone);
-                if (normedJoy > 1) normedJoy = 1.0;
-                // modulate input joystick value
-                normedJoy = (Math.Exp(joystickVelocityModulator * Math.Abs(normedJoy)) - 1) / Math.Exp(joystickVelocityModulator);
-                if (joyValue > 0) vel = Convert.ToInt32( normedJoy * Convert.ToDouble(maxspeed));
-                if (joyValue < 0) vel = Convert.ToInt32(-normedJoy * Convert.ToDouble(maxspeed));
-                command = "/" + device + " 1 move vel " + Convert.ToString(vel) + "\r\n";
-                Debug.WriteLine("Apparently, zaberPort is open");
-                zaberPort.Write(command);
-                //zaberPort.Read();
-            }
-            else
-            {
-                //make it stoopppp
-                zaberStop(device);
-            }
+            //zaberPort.Read();
+            //for erratic behavior, could try following
+            //zaberPort.Drain();
+           
         }
 
         void zaberStop(int device)
@@ -1038,7 +1035,7 @@ namespace XBoxStage
         // ----------------------------------------------------------------------
         private void buttonConnect_Click(object sender, RoutedEventArgs e)
         {
-            DeviceManagerCLI.BuildDeviceList();
+            /*DeviceManagerCLI.BuildDeviceList();*/
             //List<string> serialNumbers = DeviceManagerCLI.GetDeviceList(KCubeDCServo);
 
             StageInitialized = true;
@@ -1052,8 +1049,8 @@ namespace XBoxStage
                 m_xbox = null;
             }
             StageInitialized = false;
-            thorDevice.StopPolling();
-            thorDevice.Disconnect();
+            /*thorDevice.StopPolling();
+            thorDevice.Disconnect();*/
             zaberStop(2);
             zaberStop(3);
             zaberStop(4);
