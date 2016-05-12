@@ -21,12 +21,12 @@ using System.Runtime;
 
 using SharpDX.XInput;
 
-/*ing Thorlabs.MotionControl.DeviceManagerCLI;
+using Thorlabs.MotionControl.DeviceManagerCLI;
 using Thorlabs.MotionControl.GenericMotorCLI;
 using Thorlabs.MotionControl.GenericMotorCLI.ControlParameters; 
 using Thorlabs.MotionControl.GenericMotorCLI.AdvancedMotor;
 using Thorlabs.MotionControl.GenericMotorCLI.Settings;
-using Thorlabs.MotionControl.KCube.DCServoCLI;*/
+using Thorlabs.MotionControl.KCube.DCServoCLI;
 
 using Zaber;
 using Zaber.PlugIns;
@@ -45,12 +45,14 @@ namespace XBoxStage
         private string _rightAxis;
         private string _buttons;
         static public int POLL_RATE = 30; //in ms NOTE: XBox is limited to 30ms min
-        public int XBOX_MAX_RANGE = 32767;
+        // GUI
+        //public TextBoxStreamWriter _writer = null;
 
         // XBox
         private SharpDX.XInput.State m_xboxState;
         private SharpDX.XInput.State m_xboxStateLast;
         private SharpDX.XInput.Controller m_xbox = new Controller(UserIndex.One);
+        public int XBOX_MAX_RANGE = 32767;
 
         private byte[] pingMessage = System.Text.Encoding.ASCII.GetBytes("ping\n");
 
@@ -70,7 +72,7 @@ namespace XBoxStage
         public int[] XButtonPosition = new int[3];
         public int[] YButtonPosition = new int[3];
         public int[] BButtonPosition = new int[3];
-        public double joystickVelocityModulator = 5.0;
+        public double joystickVelocityModulator = 1.2;
         public int rDeadZone = Gamepad.RightThumbDeadZone; //Might not work here...
         public int lDeadZone = Gamepad.LeftThumbDeadZone;
         public bool LeftLastStateDeadZone = false;
@@ -82,9 +84,9 @@ namespace XBoxStage
         // position and velocity are just guesses at suitable numbers -- needs
         //to be played with in order to get a good value, but must be in decimal format
         // This is our guy's serial number -- will not be the same for others
-        /*blic KCubeDCServo thorDevice;
+        public KCubeDCServo thorDevice;
         public decimal thorPosition = 17m;
-        public string serialNo = "27000117";*/
+        public string serialNo = "27000117";
         
         // Arduino
         public SerialPort Arduino = new SerialPort();
@@ -254,6 +256,11 @@ namespace XBoxStage
             Closing += MainWindow_Closing;
             //InitializeComponent();
 
+            // Initialize GUI textbox
+            //_writer = new TextBoxStreamWriter(txtConsole);
+            //Console.SetOut(_writer);
+            Console.WriteLine("Now redirecting output to the text box");
+
             // Open the Arduino
             Arduino.PortName = "COM6";
             Arduino.BaudRate = 9600;
@@ -270,7 +277,6 @@ namespace XBoxStage
 
 
             // Open Thorlabs Actuator
-            /*
             try
             {
                 DeviceManagerCLI.BuildDeviceList();
@@ -327,25 +333,27 @@ namespace XBoxStage
                 try
                 {
                     thorDevice.WaitForSettingsInitialized(5000);
-                    if (thorDevice.IsSettingsInitialized()) Debug.WriteLine("Shit shoulda initialized");
+                    if (thorDevice.IsSettingsInitialized()) Console.WriteLine("Shit shoulda initialized");
                 }
                 catch (Exception)
                 {
                     Console.WriteLine("Settings failed to initialize");
                 }
             }
-
+            
             thorDevice.StartPolling(250);
+
+
             // call GetMotorConfiguration on the device to initialize the DeviceUnitConverter object required for real world unit parameters  
             MotorConfiguration motorSettings = thorDevice.GetMotorConfiguration(serialNo);
             //might be useful in the future, but, currently not that useful, and not setup
             //for a DC servo, which is what we have...
-            //BrushlessMotorSettings currentDeviceSettings = thorDevice.MotorDeviceSettings as BrushlessMotorSettings; //
+            //BrushlessMotorSettings currentDeviceSettings = thorDevice.MotorDeviceSettings as BrushlessMotorSettings; 
 
             // display info about device     
             DeviceInfo deviceInfo = thorDevice.GetDeviceInfo();
             Console.WriteLine("Device {0} = {1}", deviceInfo.SerialNumber, deviceInfo.Name);
-            */
+            
 
             // This guy does the gamepad polling every however many ms you want it to. 
             // The higher the sampling rate, the more likely it'll bork. YOU'VE BEEN WARNED!!
@@ -359,81 +367,81 @@ namespace XBoxStage
             // attempt to connect to a player port
             if (!m_xbox.IsConnected)
             {
-                Debug.WriteLine("XBox Controller Not Connected to One. Trying other connections");
+                Console.WriteLine("XBox Controller Not Connected to One. Trying other connections");
                 m_xbox = new SharpDX.XInput.Controller(UserIndex.Any);
                 if (!m_xbox.IsConnected)
                 {
-                    Debug.WriteLine("XBox Controller Could not be connected. Goodbye!");
+                    Console.WriteLine("XBox Controller Could not be connected. Goodbye!");
                     System.Threading.Thread.Sleep(2000);
                     App.Current.Shutdown();
                 }
             }
 
-            Debug.WriteLine("Inside of MainWindow()");
+            Console.WriteLine("Inside of MainWindow()");
 
             // Do something for this button being pressed
             // Classic Buttons
             OnXBoxGamepadButtonPressA += (s, e) =>
             {
-                Debug.WriteLine("ButtonA -- stop all");
+                Console.WriteLine("ButtonA -- stop all");
                 zaberStop(2);
                 zaberStop(3);
                 zaberStop(4);
-                /*thorDevice.StopImmediate();*/
+                thorDevice.StopImmediate();
             };
             // Do something for this button being held
             OnXBoxGamepadButtonPressAOneShot += (s, e) =>
             {
-                //Debug.WriteLine("ButtonAOneShot");
+                //Console.WriteLine("ButtonAOneShot");
             };
 
             OnXBoxGamepadButtonPressB += (s, e) =>
             {
-                Debug.WriteLine("ButtonB Move to designated B position");
+                Console.WriteLine("ButtonB Move to designated B position");
                 zaberSetCurrentPosTo(curPos);
                 zaberMoveStoredPosition(BButtonPosition, curPos);
             };
             OnXBoxGamepadButtonPressBOneShot += (s, e) =>
             {
-                //Debug.WriteLine("ButtonBOneShot");
+                //Console.WriteLine("ButtonBOneShot");
             };
 
             OnXBoxGamepadButtonPressX += (s, e) =>
             {
-                Debug.WriteLine("ButtonX move to designated X position");
+                Console.WriteLine("ButtonX move to designated X position");
                 zaberSetCurrentPosTo(curPos);
                 zaberMoveStoredPosition(XButtonPosition, curPos);
             };
             OnXBoxGamepadButtonPressXOneShot += (s, e) =>
             {
-                //Debug.WriteLine("ButtonXOneShot");
+                //Console.WriteLine("ButtonXOneShot");
             };
 
             OnXBoxGamepadButtonPressY += (s, e) =>
             {
-                Debug.WriteLine("ButtonY move to designated Y position");
+                Console.WriteLine("ButtonY move to designated Y position");
                 zaberSetCurrentPosTo(curPos);
                 zaberMoveStoredPosition(YButtonPosition, curPos);
             };
             OnXBoxGamepadButtonPressYOneShot += (s, e) =>
             {
-                //Debug.WriteLine("ButtonYOneShot");
+                //Console.WriteLine("ButtonYOneShot");
             };
 
             // DPad Buttons
             OnXBoxGamepadButtonPressDUp += (s, e) =>
             {
-                //Debug.WriteLine("ButtonDUp");
+                //Console.WriteLine("ButtonDUp");
             };
             OnXBoxGamepadButtonPressDUpOneShot += (s, e) =>
             {
-                //Debug.WriteLine("ButtonDUpOneShot");
+                //Console.WriteLine("ButtonDUpOneShot");
             };
 
             //make this guy control the air
             OnXBoxGamepadButtonPressDDown += (s, e) =>
             {
-                //Debug.WriteLine("ButtonDDown");
+                //Console.WriteLine("ButtonDDown");
                 if (Arduino.IsOpen)
                 {
                     Arduino.Write("A");
@@ -441,64 +449,64 @@ namespace XBoxStage
             };
             OnXBoxGamepadButtonPressDDownOneShot += (s, e) =>
             {
-                //Debug.WriteLine("ButtonDDownOneShot");
+                //Console.WriteLine("ButtonDDownOneShot");
             };
 
             OnXBoxGamepadButtonPressDLeft += (s, e) =>
             {
-                //Debug.WriteLine("ButtonDLeft");
+                //Console.WriteLine("ButtonDLeft");
+                thorMove(thorDevice, MotorDirection.Backward);
             };
             OnXBoxGamepadButtonPressDLeftOneShot += (s, e) =>
             {
-                //Debug.WriteLine("ButtonDLeftOneShot");
+                //Console.WriteLine("ButtonDLeftOneShot");
             };
 
             OnXBoxGamepadButtonPressDRight += (s, e) =>
             {
-                //Debug.WriteLine("ButtonDRight");
+                //Console.WriteLine("ButtonDRight");
+                thorMove(thorDevice, MotorDirection.Forward);
             };
             OnXBoxGamepadButtonPressDRightOneShot += (s, e) =>
             {
-                //Debug.WriteLine("ButtonDRightOneShot");
+                //Console.WriteLine("ButtonDRightOneShot");
             };
 
             // Shoulder and ThumbsIn Buttons
             OnXBoxGamepadButtonPressShoulderRight += (s, e) =>
             {
-                Debug.WriteLine("ButtonShoulderRight");
-                /*thorMove(thorDevice, MotorDirection.Forward);*/
+                Console.WriteLine("ButtonShoulderRight");
             };
             OnXBoxGamepadButtonPressShoulderRightOneShot += (s, e) =>
             {
-                //Debug.WriteLine("ButtonShoulderRightOneShot");
+                //Console.WriteLine("ButtonShoulderRightOneShot");
             };
 
             OnXBoxGamepadButtonPressShoulderLeft += (s, e) =>
             {
-                Debug.WriteLine("ButtonShoulderLeft");
-                /*thorMove(thorDevice, MotorDirection.Backward);*/
+                Console.WriteLine("ButtonShoulderLeft");
             };
             OnXBoxGamepadButtonPressShoulderLeftOneShot += (s, e) =>
             {
-                //Debug.WriteLine("ButtonShoulderLeftOneShot");
+                //Console.WriteLine("ButtonShoulderLeftOneShot");
             };
 
             OnXBoxGamepadButtonPressRightThumbIn += (s, e) =>
             {
-                //Debug.WriteLine("ButtonRightThumbIn");
+                //Console.WriteLine("ButtonRightThumbIn");
             };
             OnXBoxGamepadButtonPressRightThumbInOneShot += (s, e) =>
             {
-                //Debug.WriteLine("ButtonRightThumbInOneShot");
+                //Console.WriteLine("ButtonRightThumbInOneShot");
             };
 
             OnXBoxGamepadButtonPressLeftThumbIn += (s, e) =>
             {
-                //Debug.WriteLine("ButtonLeftThumbIn");
+                //Console.WriteLine("ButtonLeftThumbIn");
             };
             OnXBoxGamepadButtonPressLeftThumbInOneShot += (s, e) =>
             {
-                //Debug.WriteLine("ButtonLeftThumbInOneShot");
+                //Console.WriteLine("ButtonLeftThumbInOneShot");
             };
 
             StageInitialized = false;
@@ -525,6 +533,13 @@ namespace XBoxStage
         // Main XBox processing
         private void PollGamepad()
         {
+            var thorDeviceAcc = thorDevice.AdvancedMotorLimits.AccelerationMaximum;
+            var thorDeviceVel = 1m;
+            var thorVelParams = thorDevice.GetVelocityParams();
+            thorVelParams.Acceleration = thorDeviceAcc;
+            thorVelParams.MaxVelocity = thorDeviceVel;
+            thorDevice.SetVelocityParams(thorVelParams);
+
             if ((m_xbox == null) || !m_xbox.IsConnected) return;
             m_xboxStateLast = m_xboxState;
             m_xboxState = m_xbox.GetState();
@@ -542,24 +557,35 @@ namespace XBoxStage
             if (ButtonPushed(GamepadButtonFlags.Y)) OnXBoxGamepadButtonPressY.Invoke(this, null);
             if (ButtonOneShot(GamepadButtonFlags.Y)) OnXBoxGamepadButtonPressYOneShot.Invoke(this, null);
             // Shoulder and Joystick Thumb Buttons
-            // Shoulder buttons control Thorlabs Actuator
-            if (ButtonPushed(GamepadButtonFlags.RightShoulder) && !(ButtonPushed(GamepadButtonFlags.LeftShoulder) || ButtonOneShot(GamepadButtonFlags.LeftShoulder))) OnXBoxGamepadButtonPressShoulderRight.Invoke(this, null);
+
+            // Shoulder buttons
+            if (ButtonPushed(GamepadButtonFlags.RightShoulder)) OnXBoxGamepadButtonPressShoulderRight.Invoke(this, null);
             if (ButtonOneShot(GamepadButtonFlags.RightShoulder)) OnXBoxGamepadButtonPressShoulderRightOneShot.Invoke(this, null);
-            if (ButtonPushed(GamepadButtonFlags.LeftShoulder) && !(ButtonPushed(GamepadButtonFlags.RightShoulder) || ButtonOneShot(GamepadButtonFlags.RightShoulder))) OnXBoxGamepadButtonPressShoulderLeft.Invoke(this, null);
+            if (ButtonPushed(GamepadButtonFlags.LeftShoulder)) OnXBoxGamepadButtonPressShoulderLeft.Invoke(this, null);
             if (ButtonOneShot(GamepadButtonFlags.LeftShoulder)) OnXBoxGamepadButtonPressShoulderLeftOneShot.Invoke(this, null);
             if (ButtonPushed(GamepadButtonFlags.RightThumb)) OnXBoxGamepadButtonPressRightThumbIn.Invoke(this, null);
             if (ButtonOneShot(GamepadButtonFlags.RightThumb)) OnXBoxGamepadButtonPressRightThumbInOneShot.Invoke(this, null);
             if (ButtonPushed(GamepadButtonFlags.LeftThumb)) OnXBoxGamepadButtonPressLeftThumbIn.Invoke(this, null);
             if (ButtonOneShot(GamepadButtonFlags.LeftThumb)) OnXBoxGamepadButtonPressLeftThumbInOneShot.Invoke(this, null);
+            
             // D Pad Buttons
             if (ButtonPushed(GamepadButtonFlags.DPadUp)) OnXBoxGamepadButtonPressDUp.Invoke(this, null);
             if (ButtonOneShot(GamepadButtonFlags.DPadUp)) OnXBoxGamepadButtonPressDUpOneShot.Invoke(this, null);
             PollArduinoButton(ButtonPushed(GamepadButtonFlags.DPadDown), "A", "a", "A");
             if (ButtonPushed(GamepadButtonFlags.DPadDown)) OnXBoxGamepadButtonPressDDown.Invoke(this, null);
             if (ButtonOneShot(GamepadButtonFlags.DPadDown)) OnXBoxGamepadButtonPressDDownOneShot.Invoke(this, null);
-            if (ButtonPushed(GamepadButtonFlags.DPadLeft)) OnXBoxGamepadButtonPressDLeft.Invoke(this, null);
+            var DR = GamepadButtonFlags.DPadRight;
+            var DL = GamepadButtonFlags.DPadLeft;
+            if (m_xboxState.Gamepad.Buttons.HasFlag(DR) && !m_xboxStateLast.Gamepad.Buttons.HasFlag(DR))
+            {
+                if (ButtonPushed(DR) && !(ButtonPushed(DL) || ButtonOneShot(DL))) OnXBoxGamepadButtonPressDRight.Invoke(this, null);
+            }
+
+            if (m_xboxState.Gamepad.Buttons.HasFlag(DL) && !m_xboxStateLast.Gamepad.Buttons.HasFlag(DL))
+            {
+                if (ButtonPushed(DL) && !(ButtonPushed(DR) || ButtonOneShot(DR))) OnXBoxGamepadButtonPressDLeft.Invoke(this, null);
+            }
             if (ButtonOneShot(GamepadButtonFlags.DPadLeft)) OnXBoxGamepadButtonPressDLeftOneShot.Invoke(this, null);
-            if (ButtonPushed(GamepadButtonFlags.DPadRight)) OnXBoxGamepadButtonPressDRight.Invoke(this, null);
             if (ButtonOneShot(GamepadButtonFlags.DPadRight)) OnXBoxGamepadButtonPressDRightOneShot.Invoke(this, null);
 
             // Combo moves to save positions
@@ -584,32 +610,37 @@ namespace XBoxStage
             double Rmag = Math.Sqrt(RX * RX + RY * RY);
 
             //determine the direction the controller is pushed
-            double normalizedLX = LX / (XBOX_MAX_RANGE); //normalize to total range
-            double normalizedLY = LY / (XBOX_MAX_RANGE); //normalize to total range
-            double normalizedRX = RX / (XBOX_MAX_RANGE);
-            double normalizedRY = RY / (XBOX_MAX_RANGE);
+            double normalizedLX = Convert.ToDouble(LX) / (XBOX_MAX_RANGE); //normalize to total range
+            double normalizedLY = Convert.ToDouble(LY) / (XBOX_MAX_RANGE); //normalize to total range
+            double normalizedRX = Convert.ToDouble(RX) / (XBOX_MAX_RANGE);
+            double normalizedRY = Convert.ToDouble(RY) / (XBOX_MAX_RANGE);
 
             var normalizedLmag = 0.0;
             var normalizedRmag = 0.0;
 
-            // For Debugging -- see if the joystick register
-            Debug.WriteLine("The left normalized x value is \"{0}\" and y value is \"{1}\" of the Left joystick", normalizedLX, normalizedLY);
-            Debug.WriteLine("The normalized Right x value is \"{0}\" and y value is \"{1}\" of the Right joystick", normalizedRX, normalizedRY);
+            // For Consoleging -- see if the joystick register
+            Console.WriteLine("The left normalized x value is \"{0}\" and y value is \"{1}\" of the Left joystick", normalizedLX, normalizedLY);
+            Console.WriteLine("The normalized Right x value is \"{0}\" and y value is \"{1}\" of the Right joystick", normalizedRX, normalizedRY);
 
             // For Debugging -- check out properties of Triggers
-            if (RTrig != 0) Debug.WriteLine("RTrig value = \"{0}\"", RTrig);
-            if (LTrig != 0) Debug.WriteLine("LTrig value = \"{0}\"", LTrig);
+            if (RTrig != 0) Console.WriteLine("RTrig value = \"{0}\"", RTrig);
+            if (LTrig != 0) Console.WriteLine("LTrig value = \"{0}\"", LTrig);
 
+            
             /************************CODE TO TEST ******************************/
-            /*if (!m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.LeftShoulder) && m_xboxStateLast.Gamepad.Buttons.HasFlag(GamepadButtonFlags.LeftShoulder))
+            if (!m_xboxState.Gamepad.Buttons.HasFlag(DL) && m_xboxStateLast.Gamepad.Buttons.HasFlag(DL))
             {
-                thorDevice.Stop(200);
+                Action<UInt64> workDone = thorDevice.InitializeWaitHandler();
+                thorDevice.Stop(workDone);
+                thorDevice.ResumeMoveMessages();
             }
 
-            if (!m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.RightShoulder) && m_xboxStateLast.Gamepad.Buttons.HasFlag(GamepadButtonFlags.RightShoulder))
+            if (!m_xboxState.Gamepad.Buttons.HasFlag(DR) && m_xboxStateLast.Gamepad.Buttons.HasFlag(DR))
             {
-                thorDevice.Stop(200);
-            }*/
+                Action<UInt64> workDone = thorDevice.InitializeWaitHandler();
+                thorDevice.Stop(workDone);
+                thorDevice.ResumeMoveMessages();
+            }
             /************************END CODE TO TEST **************************/
 
             if (Lmag > lDeadZone)
@@ -683,19 +714,20 @@ namespace XBoxStage
         // ----------------------------------------------------------------------
         // Thorlabs KCube DC Servo Functions
         // ----------------------------------------------------------------------
-        /*public static void thorMove(IGenericAdvancedMotor device, MotorDirection direction )
+        public static void thorMove(IGenericAdvancedMotor device, MotorDirection direction )
         {
             try
             {
                 //device.MoveTo(position, 6000);
                 device.MoveContinuous(direction);
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                Console.WriteLine(Convert.ToString(e));
                 Console.WriteLine("Failed to move to position");
                 return;
             }
-        }*/
+        }
 
         // ----------------------------------------------------------------------
         // Arduino Functions
@@ -756,7 +788,6 @@ namespace XBoxStage
             normedJoy = Convert.ToDouble(Math.Abs(joyValue) - deadzone) / Convert.ToDouble(XBOX_MAX_RANGE - deadzone);
             if (normedJoy > 1.0) normedJoy = 1.0;
             // modulate input joystick value so that it maps to a normalilzed exp
-            // 888 this is new ratio code to try...
             normedJoy *= ratio;
             normedJoy = (Math.Exp(joystickVelocityModulator * normedJoy) - 1) / Math.Exp(joystickVelocityModulator);
             /**normedJoy = normedJoy * Convert.ToDouble(maxspeed);**/
@@ -782,7 +813,7 @@ namespace XBoxStage
         {
             int[] moveSequence = new int[3] { -1, -1, -1 };
             string command = "";
-            if (futPos.Length != 3) Debug.WriteLine("In correct number of position parameters. Please input x,y,z");
+            if (futPos.Length != 3) Console.WriteLine("In correct number of position parameters. Please input x,y,z");
             if (futPos[0] > X_MAX) futPos[0] = X_MAX;
             if (futPos[1] > Y_MAX) futPos[1] = Y_MAX;
             if (futPos[2] > Z_MAX) futPos[2] = Z_MAX;
@@ -804,7 +835,7 @@ namespace XBoxStage
                         zaberPort.Write(command);
                         break;
                     default:
-                        Debug.WriteLine("Something got fucked up in the positioning");
+                        Console.WriteLine("Something got fucked up in the positioning");
                         break;
                 }
             }
@@ -820,8 +851,8 @@ namespace XBoxStage
             zaberPort.Read();*/
             zaberPort.Write("/get pos");
             string reply = Convert.ToString(zaberPort.Read());
-            Debug.WriteLine(reply);
-            //Debug.WriteLine("the position of the xaxis is ", Convert.ToString(axisX.GetPosition()));
+            Console.WriteLine(reply);
+            //Console.WriteLine("the position of the xaxis is ", Convert.ToString(axisX.GetPosition()));
         }
 
         static int mmToSteps(string axis, double mm)
@@ -924,7 +955,7 @@ namespace XBoxStage
 
             if (tracker == 0) isIt = false;
             if (isIt == true) Console.Beep();
-            Debug.WriteLine("Trying to move into a dead zone!");
+            Console.WriteLine("Trying to move into a dead zone!");
 
             return isIt;
         }
@@ -950,7 +981,7 @@ namespace XBoxStage
                 tryPos2[2] = curPos[2];
                 if (!isNoFlyZone(tryPos2))
                 {
-                    Debug.WriteLine("xyz should work");
+                    Console.WriteLine("xyz should work");
                     moveSequence[0] = 2;
                     moveSequence[1] = 3;
                     moveSequence[2] = 4;
@@ -961,7 +992,7 @@ namespace XBoxStage
                     tryPos2[1] = curPos[1];
                     if (!isNoFlyZone(tryPos2))
                     {
-                        Debug.WriteLine("xzy should work");
+                        Console.WriteLine("xzy should work");
                         moveSequence[0] = 2;
                         moveSequence[1] = 4;
                         moveSequence[2] = 3;
@@ -978,7 +1009,7 @@ namespace XBoxStage
                 tryPos2[2] = curPos[2];
                 if (!isNoFlyZone(tryPos2))
                 {
-                    Debug.WriteLine("yxz should work");
+                    Console.WriteLine("yxz should work");
                     moveSequence[0] = 3;
                     moveSequence[1] = 2;
                     moveSequence[2] = 4;
@@ -989,7 +1020,7 @@ namespace XBoxStage
                     tryPos2[0] = curPos[0];
                     if (!isNoFlyZone(tryPos2))
                     {
-                        Debug.WriteLine("yzx should work");
+                        Console.WriteLine("yzx should work");
                         moveSequence[0] = 3;
                         moveSequence[1] = 4;
                         moveSequence[2] = 2;
@@ -1006,7 +1037,7 @@ namespace XBoxStage
                 tryPos2[1] = curPos[1];
                 if (!isNoFlyZone(tryPos2))
                 {
-                    Debug.WriteLine("zxy should work");
+                    Console.WriteLine("zxy should work");
                     moveSequence[0] = 4;
                     moveSequence[1] = 2;
                     moveSequence[2] = 3;
@@ -1017,7 +1048,7 @@ namespace XBoxStage
                     tryPos2[0] = curPos[0];
                     if (!isNoFlyZone(tryPos2))
                     {
-                        Debug.WriteLine("zyx should work");
+                        Console.WriteLine("zyx should work");
                         moveSequence[0] = 4;
                         moveSequence[1] = 3;
                         moveSequence[2] = 2;
@@ -1069,6 +1100,11 @@ namespace XBoxStage
         {
             // Generic tester function
             StageInitialized = !StageInitialized;
+        }
+
+        private void txtConsole_TextChanged(object sender, TextChangedEventArgs e)
+        {
+
         }
     }
 }
