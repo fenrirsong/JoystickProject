@@ -35,9 +35,7 @@ using Zaber.Serial.Core;
 
 namespace XBoxStage
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
+
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
         DispatcherTimer _timer = new DispatcherTimer();
@@ -57,29 +55,31 @@ namespace XBoxStage
         int MAX_X_SPEED = mmToSteps("x", 20.0);
         int MAX_Y_SPEED = mmToSteps("y", 20.0);
         int MAX_Z_SPEED = mmToSteps("z", 10.0);
-        public ZaberAsciiAxis axisX; //don't really need these....
-        public ZaberAsciiAxis axisY;
-        public ZaberAsciiAxis axisZ;
         public ZaberAsciiPort zaberPort;
-        int[] curPos = new int[3];
-        int[] futPos = new int[3]; //this guy is un-used at the moment...
+        public int[] curPos = new int[3];
         public int[] XButtonPosition = new int[3];
         public int[] YButtonPosition = new int[3];
         public int[] BButtonPosition = new int[3];
         public double joystickVelocityModulator = 1.2;
-
+        
         // XBox
         private SharpDX.XInput.State m_xboxState;
         private SharpDX.XInput.State m_xboxStateLast;
-        private SharpDX.XInput.Controller m_xbox;// = new Controller(UserIndex.One);
+        private SharpDX.XInput.Controller m_xbox;
         public int XBOX_MAX_RANGE = 32767;
-        public int rDeadZone = Gamepad.RightThumbDeadZone; //Might not work here...
+        public int rDeadZone = Gamepad.RightThumbDeadZone; 
         public int lDeadZone = Gamepad.LeftThumbDeadZone;
         public bool LeftLastStateDeadZone = false;
         public bool LeftCurrentStateDeadZone = false;
         public bool RightLastStateDeadZone = false;
         public bool RightCurrentStateDeadZone = false;
-        static public int POLL_RATE = 30; //in ms NOTE: XBox is limited to 30ms minimum
+        public bool SimultaneousUpDandBCur = false;
+        public bool SimultaneousUpDandBLast = false;
+        public bool SimultaneousUpDandXCur = false;
+        public bool SimultaneousUpDandXLast = false;
+        public bool SimultaneousUpDandYCur = false;
+        public bool SimultaneousUpDandYLast = false;
+        static public int POLL_RATE = 100; //in ms NOTE: XBox is limited to 30ms minimum
         //For the Classic Buttons
         public event EventHandler OnXBoxGamepadButtonPressA;
         public event EventHandler OnXBoxGamepadButtonPressAOneShot;
@@ -89,7 +89,6 @@ namespace XBoxStage
         public event EventHandler OnXBoxGamepadButtonPressXOneShot;
         public event EventHandler OnXBoxGamepadButtonPressY;
         public event EventHandler OnXBoxGamepadButtonPressYOneShot;
-
         //For D Pad Buttons
         public event EventHandler OnXBoxGamepadButtonPressDUp;
         public event EventHandler OnXBoxGamepadButtonPressDUpOneShot;
@@ -99,7 +98,6 @@ namespace XBoxStage
         public event EventHandler OnXBoxGamepadButtonPressDLeftOneShot;
         public event EventHandler OnXBoxGamepadButtonPressDRight;
         public event EventHandler OnXBoxGamepadButtonPressDRightOneShot;
-
         //For the Shoulders and ThumbsIn
         public event EventHandler OnXBoxGamepadButtonPressShoulderRight;
         public event EventHandler OnXBoxGamepadButtonPressShoulderRightOneShot;
@@ -158,14 +156,13 @@ namespace XBoxStage
             DataContext = this;
             Loaded += MainWindow_Loaded;
             Closing += MainWindow_Closing;
-            //InitializeComponent();
 
             //Initialize Controlled Parts
             thorInitialize();
             arduinoInitialize();
             zaberInitialize();
 
-            //A couple more Thor things that don't play nice outside of main()
+            //A couple Thor things that don't play nice outside of main()
             var thorAcceleration = thorDevice.AdvancedMotorLimits.AccelerationMaximum;
             var thorSpeed = 1m;
             var thorVelParams = thorDevice.GetVelocityParams();
@@ -173,7 +170,7 @@ namespace XBoxStage
             thorVelParams.MaxVelocity = thorSpeed;
             thorDevice.SetVelocityParams(thorVelParams);
             thorDevice.StartPolling(250);
-
+            
             // This guy does the gamepad polling every however many ms you want it to. 
             // The higher the sampling rate, the more likely it'll bork. YOU'VE BEEN WARNED!!
             _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(POLL_RATE) };
@@ -186,7 +183,7 @@ namespace XBoxStage
             // Classic Buttons
             OnXBoxGamepadButtonPressA += (s, e) =>
             {
-                Console.WriteLine("ButtonA -- stop all");
+                //Console.WriteLine("ButtonA -- stop all");
                 zaberStop(2);
                 zaberStop(3);
                 zaberStop(4);
@@ -200,9 +197,13 @@ namespace XBoxStage
 
             OnXBoxGamepadButtonPressB += (s, e) =>
             {
+                 
                 Console.WriteLine("ButtonB Move to designated B position");
-                zaberSetToCurrentPos(curPos);
-                zaberMoveStoredPosition(BButtonPosition, curPos);
+                curPos = zaberGetCurrentPos();
+                Console.WriteLine("curPos[0]: {0} \t curPos[1]: {1} \t curPos[2]: {2}", curPos[0], curPos[1], curPos[2]);
+                Console.WriteLine("BButtonPosition[0]: {0} \t BButtonPosition[1]: {1} \t BButtonPosition[2]: {2}", BButtonPosition[0], BButtonPosition[1], BButtonPosition[2]);
+                //zaberMoveStoredPositionOneAtATime(BButtonPosition, curPos);
+                zaberMoveStoredPositionAllAtOnce(BButtonPosition);
             };
             OnXBoxGamepadButtonPressBOneShot += (s, e) =>
             {
@@ -211,9 +212,12 @@ namespace XBoxStage
 
             OnXBoxGamepadButtonPressX += (s, e) =>
             {
-                Console.WriteLine("ButtonX move to designated X position");
-                zaberSetToCurrentPos(curPos);
-                zaberMoveStoredPosition(XButtonPosition, curPos);
+                Console.WriteLine("ButtonX: attempt move to designated X position");
+                curPos = zaberGetCurrentPos();
+                Console.WriteLine("curPos[0]: {0} \t curPos[1]: {1} \t curPos[2]: {2}", curPos[0], curPos[1], curPos[2]);
+                Console.WriteLine("XButtonPosition[0]: {0} \t XButtonPosition[1]: {1} \t XButtonPosition[2]: {2}", XButtonPosition[0], XButtonPosition[1], XButtonPosition[2]);
+                //zaberMoveStoredPositionOneAtATime(XButtonPosition, curPos);
+                zaberMoveStoredPositionAllAtOnce(XButtonPosition);
             };
             OnXBoxGamepadButtonPressXOneShot += (s, e) =>
             {
@@ -222,9 +226,13 @@ namespace XBoxStage
 
             OnXBoxGamepadButtonPressY += (s, e) =>
             {
-                Console.WriteLine("ButtonY move to designated Y position");
-                zaberSetToCurrentPos(curPos);
-                zaberMoveStoredPosition(YButtonPosition, curPos);
+                Console.WriteLine("ButtonY: attempt move to designated Y position");
+                curPos = zaberGetCurrentPos();
+                Console.WriteLine("curPos[0]: {0} \t curPos[1]: {1} \t curPos[2]: {2}", curPos[0], curPos[1], curPos[2]);
+                Console.WriteLine("YButtonPosition[0]: {0} \t YButtonPosition[1]: {1}\t YButtonPosition[2]: {2}", YButtonPosition[0], YButtonPosition[1], YButtonPosition[2]);
+                //zaberMoveStoredPositionOneAtATime(YButtonPosition, curPos);
+                zaberMoveStoredPositionAllAtOnce(YButtonPosition);
+                
             };
             OnXBoxGamepadButtonPressYOneShot += (s, e) =>
             {
@@ -313,13 +321,24 @@ namespace XBoxStage
             
         }
 
-
         // ----------------------------------------------------------------------
-        // XBox
+        // XBox Controller Functions
         // ----------------------------------------------------------------------
-
         // return true if the button state just transitioned from 0 to 1
         // Gives more control to the button
+        public void xboxInitialize()
+        {
+            // If the controller was not assigned to player One during initialization
+            // attempt to connect to a player port
+            m_xbox = new SharpDX.XInput.Controller(UserIndex.Any);
+            if (!m_xbox.IsConnected)
+            {
+                Console.WriteLine("XBox Controller Could not be connected. Goodbye!");
+                System.Threading.Thread.Sleep(2000);
+                App.Current.Shutdown();
+            }
+        }
+
         private bool ButtonOneShot (GamepadButtonFlags button)
         {
             return !m_xboxStateLast.Gamepad.Buttons.HasFlag(button) && m_xboxState.Gamepad.Buttons.HasFlag(button);
@@ -331,20 +350,88 @@ namespace XBoxStage
             return m_xboxState.Gamepad.Buttons.HasFlag(button);
         }
 
+        public void xboxJoystick(string side, double x, double y)
+        {
+            double magnitude = Math.Sqrt(x * x + y * y);
+            int deadzone;
+            bool currentStateDeadZone, lastStateDeadZone, isLeftSide;
+            int xDevice, yDevice;
+
+            switch (side)
+            {
+                case "left":
+                    currentStateDeadZone = LeftCurrentStateDeadZone;
+                    lastStateDeadZone = LeftLastStateDeadZone;
+                    deadzone = lDeadZone;
+                    isLeftSide = true;
+                    xDevice = 2; //corresponds to zaber x-axis
+                    yDevice = 3; //corresponds to zaber y-axis
+                    break;
+                case "right":
+                    currentStateDeadZone = RightCurrentStateDeadZone;
+                    lastStateDeadZone = RightLastStateDeadZone;
+                    deadzone = rDeadZone;
+                    isLeftSide = false;
+                    xDevice = 0; //this will make it default in zaber move, just returning
+                    yDevice = 4; //corresponds to zaber z-axis
+                    break;
+                default:
+                    Console.WriteLine("Joystick side picked is not valid");
+                    return;
+            }
+
+            if (magnitude > deadzone)
+            {
+                currentStateDeadZone = false;
+                //send the LX and LY values to move calculating function
+                if (Math.Abs(x) > deadzone) zaberMoveVelocity(xDevice, x, y, isLeftSide);
+                if (Math.Abs(y) > deadzone) zaberMoveVelocity(yDevice, -y, x, isLeftSide);
+            }
+            else
+            {
+                currentStateDeadZone = true;
+                if (lastStateDeadZone == false)
+                {
+                    zaberStop(xDevice);
+                    zaberStop(yDevice);
+                }
+            }
+            if (isLeftSide) LeftCurrentStateDeadZone = currentStateDeadZone;
+            else if (!isLeftSide) RightCurrentStateDeadZone = currentStateDeadZone;
+        }
+
         // Main XBox processing
         private void PollGamepad()
         {
-            // Update statuses
+            // Update statuses and save buttons
             if ((m_xbox == null) || !m_xbox.IsConnected) return;
             m_xboxStateLast = m_xboxState;
             m_xboxState = m_xbox.GetState();
             LeftLastStateDeadZone = LeftCurrentStateDeadZone;
             RightLastStateDeadZone = RightCurrentStateDeadZone;
+            SimultaneousUpDandBLast = SimultaneousUpDandBCur;
+            SimultaneousUpDandXLast = SimultaneousUpDandXCur;
+            SimultaneousUpDandYLast = SimultaneousUpDandYCur;
+
+            if (m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.DPadUp) && m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.B)) SimultaneousUpDandBCur = true;
+            else SimultaneousUpDandBCur = false;
+            if (m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.DPadUp) && m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.X)) SimultaneousUpDandXCur = true;
+            else SimultaneousUpDandXCur = false;
+            if (m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.DPadUp) && m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.Y)) SimultaneousUpDandYCur = true;
+            else SimultaneousUpDandYCur = false;
+
+            //Console.WriteLine("SimultaneousUpDandBLast: {0}", Convert.ToString(SimultaneousUpDandBLast));
+            //Console.WriteLine("SimultaneousUpDandBCur: {0}", Convert.ToString(SimultaneousUpDandBCur));
+            //Console.WriteLine("SimultaneousUpDandXLast: {0}", Convert.ToString(SimultaneousUpDandXLast));
+            //Console.WriteLine("SimultaneousUpDandXCur: {0}", Convert.ToString(SimultaneousUpDandXCur));
+            //Console.WriteLine("SimultaneousUpDandYLast: {0}", Convert.ToString(SimultaneousUpDandYLast));
+            //Console.WriteLine("SimultaneousUpDandYCur: {0}", Convert.ToString(SimultaneousUpDandYCur));
 
             // Event handlers for buttons being pushed
             // Classic Buttons
             if (ButtonPushed(GamepadButtonFlags.A)) OnXBoxGamepadButtonPressA.Invoke(this, null);
-            if (ButtonPushed(GamepadButtonFlags.B)) OnXBoxGamepadButtonPressB.Invoke(this, null);
+            //if (ButtonPushed(GamepadButtonFlags.B)) OnXBoxGamepadButtonPressB.Invoke(this, null);
+            if (m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.B) && !m_xboxStateLast.Gamepad.Buttons.HasFlag(GamepadButtonFlags.B) && !m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.DPadUp)) OnXBoxGamepadButtonPressB.Invoke(this, null);
             if (ButtonOneShot(GamepadButtonFlags.A)) OnXBoxGamepadButtonPressAOneShot.Invoke(this, null);
             if (ButtonOneShot(GamepadButtonFlags.B)) OnXBoxGamepadButtonPressBOneShot.Invoke(this, null);
             if (ButtonPushed(GamepadButtonFlags.X)) OnXBoxGamepadButtonPressX.Invoke(this, null);
@@ -395,10 +482,10 @@ namespace XBoxStage
             if (ButtonOneShot(GamepadButtonFlags.DPadLeft)) OnXBoxGamepadButtonPressDLeftOneShot.Invoke(this, null);
             if (ButtonOneShot(GamepadButtonFlags.DPadRight)) OnXBoxGamepadButtonPressDRightOneShot.Invoke(this, null);
 
-            // Combo moves to save positions
-            if (ButtonPushed(GamepadButtonFlags.B) && ButtonPushed(GamepadButtonFlags.DPadUp)) zaberSetToCurrentPos(BButtonPosition);
-            if (ButtonPushed(GamepadButtonFlags.X) && ButtonPushed(GamepadButtonFlags.DPadUp)) zaberSetToCurrentPos(XButtonPosition);
-            if (ButtonPushed(GamepadButtonFlags.Y) && ButtonPushed(GamepadButtonFlags.DPadUp)) zaberSetToCurrentPos(YButtonPosition);
+            // Combos to save positions
+            if (SimultaneousUpDandBCur && !SimultaneousUpDandBLast) BButtonPosition = zaberGetCurrentPos();
+            if (SimultaneousUpDandXCur && !SimultaneousUpDandXLast) XButtonPosition = zaberGetCurrentPos(); 
+            if (SimultaneousUpDandYCur && !SimultaneousUpDandYLast) YButtonPosition = zaberGetCurrentPos(); 
 
             // Do the triggers and shoulders
             var RTrig = m_xboxState.Gamepad.RightTrigger;
@@ -412,72 +499,6 @@ namespace XBoxStage
 
             xboxJoystick("left", LX, LY);
             xboxJoystick("right", RX, RY);
-        }
-
-        // ----------------------------------------------------------------------
-        // XBox Controller Functions
-        // ----------------------------------------------------------------------
-        public void xboxInitialize()
-        {
-            // If the controller was not assigned to player One during initialization
-            // attempt to connect to a player port
-            m_xbox = new SharpDX.XInput.Controller(UserIndex.Any);
-            if (!m_xbox.IsConnected)
-            {
-                Console.WriteLine("XBox Controller Could not be connected. Goodbye!");
-                System.Threading.Thread.Sleep(2000);
-                App.Current.Shutdown();
-            }
-        }
-
-        public void xboxJoystick(string side, double x, double y)
-        {
-            double magnitude = Math.Sqrt(x*x + y*y);
-            int deadzone;
-            bool currentStateDeadZone, lastStateDeadZone, isLeftSide;
-            int xDevice, yDevice;
-
-            switch (side)
-            {
-                case "left":
-                    currentStateDeadZone = LeftCurrentStateDeadZone;
-                    lastStateDeadZone = LeftLastStateDeadZone;
-                    deadzone = lDeadZone;
-                    isLeftSide = true;
-                    xDevice = 2; //corresponds to zaber x-axis
-                    yDevice = 3; //corresponds to zaber y-axis
-                    break;
-                case "right":
-                    currentStateDeadZone = RightCurrentStateDeadZone;
-                    lastStateDeadZone = RightLastStateDeadZone;
-                    deadzone = rDeadZone;
-                    isLeftSide = false;
-                    xDevice = 0; //this will make it default in zaber move, just returning
-                    yDevice = 4; //corresponds to zaber z-axis
-                    break;
-                default:
-                    Console.WriteLine("Joystick side picked is not valid");
-                    return;
-            }
-
-            if (magnitude > deadzone)
-            {
-                currentStateDeadZone = false;
-                //send the LX and LY values to move calculating function
-                if (Math.Abs(x) > deadzone) zaberMoveVelocity(xDevice, x, y, isLeftSide);
-                if (Math.Abs(y) > deadzone) zaberMoveVelocity(yDevice, -y, x, isLeftSide);
-            }
-            else
-            {
-                currentStateDeadZone = true;
-                if (lastStateDeadZone == false)
-                {
-                    zaberStop(xDevice);
-                    zaberStop(yDevice);
-                }
-            }
-            if (isLeftSide) LeftCurrentStateDeadZone = currentStateDeadZone;
-            else if (!isLeftSide) RightCurrentStateDeadZone = currentStateDeadZone;
         }
 
         // ----------------------------------------------------------------------
@@ -504,7 +525,7 @@ namespace XBoxStage
             string devices = string.Join(",", serialNumbers.ToArray());
             Console.WriteLine("Number of devices found \"{0}\"", devicesCount);
             Console.WriteLine("devices found \"{0}\"", devices);
-            if (devices == "") Console.WriteLine("none of that device shit found!!");
+            if (devices == "") Console.WriteLine("No thor device found!!");
             if (!serialNumbers.Contains(serialNo))
             {
                 // the requested serial number is not a TBD001 or is not connected
@@ -604,17 +625,18 @@ namespace XBoxStage
         // ----------------------------------------------------------------------
         // Zaber Functions
         // ----------------------------------------------------------------------
+        // Initializes the zaber port
+        // Note: currently the objects axisX, axisY, and axisZ are not used
+        // and generally don't play nicely with the rest of the code.
         public void zaberInitialize()
         {
             //Open the Zaber Actuators
             zaberPort = new ZaberAsciiPort("COM5");
             zaberPort.Open();
-            axisX = new ZaberAsciiAxis(zaberPort, 2, 1); // device 2, x axis -- might not need these
-            axisY = new ZaberAsciiAxis(zaberPort, 3, 1); // device 3, y axis
-            axisZ = new ZaberAsciiAxis(zaberPort, 4, 1); // device 4, z axis
-            //*********bool isItNoFlyZone = false; *****//
         }
 
+        // Moves a device in a direction depending on the input values 
+        // from the joystick
         void zaberMoveVelocity(int device, double moveDirection, double orthogonalDirection, bool isLeftSide)
         {
             int maxspeed = 0;
@@ -657,63 +679,81 @@ namespace XBoxStage
             vel = (moveDirection > 0) ? Convert.ToInt32(normedMoveDir) : Convert.ToInt32(-normedMoveDir);
             command = "/" + device + " 1 move vel " + Convert.ToString(vel) + "\r\n";
             zaberPort.Write(command);
+            zaberPort.Read();
         }
 
+        // Stops the zaber device indicated
         void zaberStop(int device)
         {
             if (device == 0) return;
+            if (!zaberPort.IsOpen) return;
             string command = "";
             command = "/" + device + " 1 stop \r\n";
             zaberPort.Write(command);
-            //zaberPort.Read();
+            zaberPort.Read();
         }
 
-        void zaberMoveStoredPosition(int[] futPos, int[] curPos)
+        // Moves the actuators from the current position(curPos)
+        // to the future position(futPos).  It avoids the programmed in no
+        // fly zones after determing the move sequence.
+        void zaberMoveStoredPositionOneAtATime(int[] futPos, int[] curPos)
         {
+            var axisX = new ZaberAsciiAxis(zaberPort, 2, 1); // device 2, x axis
+            var axisY = new ZaberAsciiAxis(zaberPort, 3, 1); // device 3, y axis
+            var axisZ = new ZaberAsciiAxis(zaberPort, 4, 1); // device 4, z axis
+            Console.WriteLine("In zaberMoveStoredPosition");
             int[] moveSequence = new int[3] { -1, -1, -1 };
-            string command = "";
             if (futPos.Length != 3) Console.WriteLine("In correct number of position parameters. Please input x,y,z");
             if (futPos[0] > X_MAX) futPos[0] = X_MAX;
             if (futPos[1] > Y_MAX) futPos[1] = Y_MAX;
             if (futPos[2] > Z_MAX) futPos[2] = Z_MAX;
-            moveSequence = avoidNoFlyZones(futPos, curPos);
+            moveSequence = avoidNoFlyZones(futPos, curPos);  //needs a little debugging and recalibration for current setup
             for (int i =0; i < futPos.Length; i++)
             {
                 switch (moveSequence[i])
                 {
                     case 2: // this correlates to the x axis
-                        command = "/" + moveSequence[i] + " 1 move pos " + Convert.ToString(futPos[0]) + "\r\n";
-                        zaberPort.Write(command);
+                        axisX.MoveAbsolute(futPos[0]);
                         break;
                     case 3: // this correlates to the y axis
-                        command = "/" + moveSequence[i] + " 1 move pos " + Convert.ToString(futPos[1]) + "\r\n";
-                        zaberPort.Write(command);
+                        axisY.MoveAbsolute(futPos[1]);
                         break;
                     case 4: // this correlates to the z axis
-                        command = "/" + moveSequence[i] + " 1 move pos " + Convert.ToString(futPos[2]) + "\r\n";
-                        zaberPort.Write(command);
+                        axisZ.MoveAbsolute(futPos[2]);
                         break;
                     default:
-                        Console.WriteLine("Something got fucked up in the positioning");
+                        Console.WriteLine("Something got messed up in the positioning!");
                         break;
                 }
             }
         }
 
-        void zaberSetToCurrentPos(int[] pos)
+        void zaberMoveStoredPositionAllAtOnce(int[] futPos)
         {
-            /*pos[0] = axisX.GetPosition();
+            string moveX = "/2 1 move abs " + futPos[0].ToString() + "\r\n";
+            string moveY = "/3 1 move abs " + futPos[1].ToString() + "\r\n";
+            string moveZ = "/4 1 move abs " + futPos[2].ToString() + "\r\n";
+
+            zaberPort.Write(moveX);
+            zaberPort.Write(moveY);
+            zaberPort.Write(moveZ);
             zaberPort.Read();
-            pos[1] = axisY.GetPosition();
             zaberPort.Read();
-            pos[2] = axisZ.GetPosition();
-            zaberPort.Read();*/
-            //zaberPort.Write("/get pos");
-            //string reply = Convert.ToString(zaberPort.Read());
-            //Console.WriteLine(reply);
-            Console.WriteLine("the position of the xaxis is ", Convert.ToString(axisX.GetPosition()));
+            zaberPort.Read();
         }
 
+        // Gets current position
+        public int[] zaberGetCurrentPos()
+        {
+            var axisX = new ZaberAsciiAxis(zaberPort, 2, 1); // device 2, x axis
+            var axisY = new ZaberAsciiAxis(zaberPort, 3, 1); // device 3, y axis
+            var axisZ = new ZaberAsciiAxis(zaberPort, 4, 1); // device 4, z axis
+            int[] curPos = new int[3] { axisX.GetPosition(), axisY.GetPosition(), axisZ.GetPosition() };
+
+            return curPos;
+        }
+
+        // Converts mm to steps given the axis and mm to convert
         static int mmToSteps(string axis, double mm)
         {
             int steps = 0;
@@ -742,6 +782,7 @@ namespace XBoxStage
             return steps;
         }
 
+        // Converts steps to mm given the axis and number of steps to convert
         static double stepsToMM(string axis, int steps)
         {
             double mm = 0;
@@ -793,7 +834,6 @@ namespace XBoxStage
             // This NoFlyZone is the microtome's plastic part in steps
             new NoFlyZone(734320, X_MAX, 0, Y_MAX, 271423, Z_MAX),
             // This NoFlyZone is the microtome from approx the boat up 
-            // NEED TO MAP NoFlyZone WITH SETUP COMPLETED!!!
             new NoFlyZone(1216976, X_MAX, 0, 1700412, 271423, Z_MAX),
             // This NoFlyZone is the block region of the microtome
             new NoFlyZone(1080153, X_MAX, 0, 499378, 0, Z_MAX)
@@ -814,7 +854,6 @@ namespace XBoxStage
 
             if (tracker == 0) isIt = false;
             if (isIt == true) Console.Beep();
-            Console.WriteLine("Trying to move into a dead zone!");
 
             return isIt;
         }
@@ -922,10 +961,8 @@ namespace XBoxStage
         }
 
         // ----------------------------------------------------------------------
-        // GUI
+        // GUI Functions
         // ----------------------------------------------------------------------
-
-        //Disconnect closes the app
         private void buttonDisconnect_Click(object sender, RoutedEventArgs e)
         {
             if (m_xbox != null)
@@ -944,12 +981,8 @@ namespace XBoxStage
 
         private void buttonHome_click(object sender, RoutedEventArgs e)
         {
-            //thorDevice.Home(200);
+            thorDevice.Home(200);
         }
 
-        private void txtConsole_TextChanged(object sender, TextChangedEventArgs e)
-        {
-
-        }
     }
 }
