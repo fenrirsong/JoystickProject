@@ -18,6 +18,7 @@ using System.Windows.Shapes;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Runtime;
+using System.Media;
 
 using SharpDX.XInput;
 
@@ -40,7 +41,7 @@ namespace XBoxStage
     {
         DispatcherTimer _timer = new DispatcherTimer();
         private byte[] pingMessage = System.Text.Encoding.ASCII.GetBytes("ping\n");
-
+        
         // Thorlabs Actuator (serial number provided is specific to my device)
         public KCubeDCServo thorDevice;
         public string serialNo = "27000117";
@@ -136,10 +137,15 @@ namespace XBoxStage
             zaberPort.Close();
             Arduino.Close();
             m_xbox = null;
+            
         }
 
         void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            Console.WriteLine("attempting to play intro music");
+            SoundPlayer rocky = new SoundPlayer();
+            rocky.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTonalButtons\XBoxStageMaster\XBoxStage\Resources\trumpets.wav";
+            rocky.Play();
             m_xbox = new Controller(UserIndex.One);
             if (m_xbox.IsConnected) return;
             System.Windows.MessageBox.Show("Controller is not connected");
@@ -152,6 +158,7 @@ namespace XBoxStage
         // ----------------------------------------------------------------------
         public MainWindow() 
         {
+            
             // This stuff loads the window and closes it
             DataContext = this;
             Loaded += MainWindow_Loaded;
@@ -163,6 +170,7 @@ namespace XBoxStage
             zaberInitialize();
 
             //A couple Thor things that don't play nice outside of main()
+            
             var thorAcceleration = thorDevice.AdvancedMotorLimits.AccelerationMaximum;
             var thorSpeed = 1m;
             var thorVelParams = thorDevice.GetVelocityParams();
@@ -188,6 +196,9 @@ namespace XBoxStage
                 zaberStop(3);
                 zaberStop(4);
                 thorDevice.StopImmediate();
+                SoundPlayer cancel = new SoundPlayer();
+                cancel.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTryRefactor\XBoxStageMaster\XBoxStage\Resources\buzzer.wav";
+                cancel.Play();
             };
             // Do something for this button being held
             OnXBoxGamepadButtonPressAOneShot += (s, e) =>
@@ -204,6 +215,10 @@ namespace XBoxStage
                 Console.WriteLine("BButtonPosition[0]: {0} \t BButtonPosition[1]: {1} \t BButtonPosition[2]: {2}", BButtonPosition[0], BButtonPosition[1], BButtonPosition[2]);
                 //zaberMoveStoredPositionOneAtATime(BButtonPosition, curPos);
                 zaberMoveStoredPositionAllAtOnce(BButtonPosition);
+
+                SoundPlayer a100Hz = new SoundPlayer();
+                a100Hz.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTryRefactor\XBoxStageMaster\XBoxStage\Resources\a100Hz.wav";
+                a100Hz.Play();
             };
             OnXBoxGamepadButtonPressBOneShot += (s, e) =>
             {
@@ -218,6 +233,9 @@ namespace XBoxStage
                 Console.WriteLine("XButtonPosition[0]: {0} \t XButtonPosition[1]: {1} \t XButtonPosition[2]: {2}", XButtonPosition[0], XButtonPosition[1], XButtonPosition[2]);
                 //zaberMoveStoredPositionOneAtATime(XButtonPosition, curPos);
                 zaberMoveStoredPositionAllAtOnce(XButtonPosition);
+                SoundPlayer a250Hz = new SoundPlayer();
+                a250Hz.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTryRefactor\XBoxStageMaster\XBoxStage\Resources\a250Hz.wav";
+                a250Hz.Play();
             };
             OnXBoxGamepadButtonPressXOneShot += (s, e) =>
             {
@@ -232,7 +250,9 @@ namespace XBoxStage
                 Console.WriteLine("YButtonPosition[0]: {0} \t YButtonPosition[1]: {1}\t YButtonPosition[2]: {2}", YButtonPosition[0], YButtonPosition[1], YButtonPosition[2]);
                 //zaberMoveStoredPositionOneAtATime(YButtonPosition, curPos);
                 zaberMoveStoredPositionAllAtOnce(YButtonPosition);
-                
+                SoundPlayer a440Hz = new SoundPlayer();
+                a440Hz.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTryRefactor\XBoxStageMaster\XBoxStage\Resources\a440Hz.wav";
+                a440Hz.Play();
             };
             OnXBoxGamepadButtonPressYOneShot += (s, e) =>
             {
@@ -262,6 +282,7 @@ namespace XBoxStage
             {
                 //Console.WriteLine("ButtonDLeft");
                 
+
             };
             OnXBoxGamepadButtonPressDLeftOneShot += (s, e) =>
             {
@@ -271,7 +292,7 @@ namespace XBoxStage
             OnXBoxGamepadButtonPressDRight += (s, e) =>
             {
                 //Console.WriteLine("ButtonDRight");
-                thorMove(thorDevice, MotorDirection.Forward);
+                
             };
             OnXBoxGamepadButtonPressDRightOneShot += (s, e) =>
             {
@@ -419,13 +440,6 @@ namespace XBoxStage
             else SimultaneousUpDandXCur = false;
             if (m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.DPadUp) && m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.Y)) SimultaneousUpDandYCur = true;
             else SimultaneousUpDandYCur = false;
-
-            //Console.WriteLine("SimultaneousUpDandBLast: {0}", Convert.ToString(SimultaneousUpDandBLast));
-            //Console.WriteLine("SimultaneousUpDandBCur: {0}", Convert.ToString(SimultaneousUpDandBCur));
-            //Console.WriteLine("SimultaneousUpDandXLast: {0}", Convert.ToString(SimultaneousUpDandXLast));
-            //Console.WriteLine("SimultaneousUpDandXCur: {0}", Convert.ToString(SimultaneousUpDandXCur));
-            //Console.WriteLine("SimultaneousUpDandYLast: {0}", Convert.ToString(SimultaneousUpDandYLast));
-            //Console.WriteLine("SimultaneousUpDandYCur: {0}", Convert.ToString(SimultaneousUpDandYCur));
 
             // Event handlers for buttons being pushed
             // Classic Buttons
