@@ -6,9 +6,6 @@ This repo has a few subprojects within it.  The purpose of this project is to de
 **"Instructable Example"**
 I used an example to figure out how to get a Windows Forms C# project to talk to my Arduino to turn on an LED.  No big deal.
 
-**"ConsoleZaberCommanderASCII"**
-I built and tested some code to deal with "noFlyZones" or places I don't want our expensive equipment to run into.  It *should* avoid these zones, and from the tests I've run, it does, with the exception of moving to the opposite side of an obstacle.  I haven't built that part of the code because I think it will be outside the scope of this entire project.  Our zones are fairly large objects that can be approximated with a few rectangular areas.
-
 **"XBoxStage"**
 I took code written by @jaybo and modified it so that I have an XBox controller controlling an Arduino (Uno on COM5 at baud = 9600), 3 Zaber actuators(on COM6, baudrate = 9600), and 1 Thorlabs actuator controlled by a KCube DCServo.  I use a WPF in Visual Studio C#.  This project depends on SharpDX.XInput, Thorlabs.MotionControl.DeviceManager, Thorlabs.MotionControl.GenericMotor, Thorlabs.MotionControl.KCube.DCServo(http://www.thorlabs.us/Software/Motion%20Control/KINESIS/Application/KINESIS%20Install%20x64/setup.exe), Zaber, Zaber.Serial.Core(http://zaber.com/software/zaber-core-serial-csharp-v1.2.zip).  
 
