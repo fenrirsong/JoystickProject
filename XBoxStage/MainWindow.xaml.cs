@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows;
+using System.IO;
 using System.IO.Ports;
 using System.Windows.Threading;
 using System.Runtime.CompilerServices;
@@ -19,6 +20,10 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Runtime;
 using System.Media;
+
+using LiveCharts;
+using LiveCharts.Wpf;
+using LiveCharts.Configurations;
 
 using SharpDX.XInput;
 
@@ -46,8 +51,13 @@ namespace XBoxStage
         public KCubeDCServo thorDevice;
         public string serialNo = "27000117";
 
-        // Arduino
+        // Arduino and sensor output stuff
         public SerialPort Arduino = new SerialPort();
+        private double _axisMax;
+        private double _axisMin;
+        public event PropertyChangedEventHandler PropertyChanged;
+        public string filename;
+        public string path;
 
         // Zaber
         static public int X_MAX = 1526940;
@@ -61,7 +71,7 @@ namespace XBoxStage
         public int[] XButtonPosition = new int[3];
         public int[] YButtonPosition = new int[3];
         public int[] BButtonPosition = new int[3];
-        public double joystickVelocityModulator = 1.2;
+        public double joystickVelocityModulator = 1.15;
         
         // XBox
         private SharpDX.XInput.State m_xboxState;
@@ -112,12 +122,10 @@ namespace XBoxStage
         // ----------------------------------------------------------------------
         // Property notification boilerplate
         // ----------------------------------------------------------------------
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        protected virtual void OnPropertyChanged(string propertyName = null)
         {
-            var handler = PropertyChanged;
-            if (handler != null) handler(this, new PropertyChangedEventArgs(propertyName));
+            if (PropertyChanged != null)
+                PropertyChanged.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
         // The _time_Tick function happens every x ms (set in MainWindow())
@@ -172,19 +180,61 @@ namespace XBoxStage
             //A couple Thor things that don't play nice outside of main()
             
             var thorAcceleration = thorDevice.AdvancedMotorLimits.AccelerationMaximum;
-            var thorSpeed = 1m;
+            var thorSpeed = thorDevice.AdvancedMotorLimits.VelocityMaximum; //1m;
             var thorVelParams = thorDevice.GetVelocityParams();
             thorVelParams.Acceleration = thorAcceleration;
             thorVelParams.MaxVelocity = thorSpeed;
             thorDevice.SetVelocityParams(thorVelParams);
-            thorDevice.StartPolling(250);
+            thorDevice.StartPolling(20);
             
             // This guy does the gamepad polling every however many ms you want it to. 
             // The higher the sampling rate, the more likely it'll bork. YOU'VE BEEN WARNED!!
             _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(POLL_RATE) };
             _timer.Tick += _timer_Tick;
             _timer.Start();
-         
+
+            string timeAndDate = GetTimeAndDate(DateTime.Now);
+            filename = "SensorOutput" + timeAndDate + ".txt";
+            path = @"C:\Users\ariaj\Documents\" + filename;
+
+            String timeStamp = GetTimeStamp(DateTime.Now);
+            Console.WriteLine("The time stamp is: {0}", timeStamp);
+
+            var hallMapper = Mappers.Xy<MeasureModel>()
+                .X(model => model.DateTime.Ticks)   //use DateTime.Ticks as X
+                .Y(model => model.Value);           //use the value property as Y
+            var thermMapper = Mappers.Xy<MeasureModel>()
+                .X(model => model.DateTime.Ticks)   //use DateTime.Ticks as X
+                .Y(model => model.Value);           //use the value property as Y
+            var windMapper = Mappers.Xy<MeasureModel>()
+                .X(model => model.DateTime.Ticks)   //use DateTime.Ticks as X
+                .Y(model => model.Value);           //use the value property as Y
+
+            //lets save the mapper globally.
+            Charting.For<MeasureModel>(hallMapper);
+            Charting.For<MeasureModel>(thermMapper);
+            Charting.For<MeasureModel>(windMapper);
+
+            //the values property will store our values array
+            hallValues = new ChartValues<MeasureModel>();
+            thermValues = new ChartValues<MeasureModel>();
+            windValues = new ChartValues<MeasureModel>();
+
+            //lets set how to display the X Labels
+            DateTimeFormatter = value => new DateTime((long)value).ToString("mm:ss");
+
+            AxisStep = TimeSpan.FromSeconds(5).Ticks;
+            SetAxisLimits(DateTime.Now);
+
+            // This timer does the graphing instead
+            Timer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(1000)
+            };
+            Timer.Tick += TimerOnTick;
+            IsDataInjectionRunning = false;
+
+            DataContext = this;
             Console.WriteLine("Inside of MainWindow()");
 
             // Do something for this button being pressed
@@ -197,8 +247,9 @@ namespace XBoxStage
                 zaberStop(4);
                 thorDevice.StopImmediate();
                 SoundPlayer cancel = new SoundPlayer();
-                cancel.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTryRefactor\XBoxStageMaster\XBoxStage\Resources\buzzer.wav";
+                cancel.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTonalButtons\XBoxStageMaster\XBoxStage\Resources\buzzer.wav";
                 cancel.Play();
+                cancel.Dispose();
             };
             // Do something for this button being held
             OnXBoxGamepadButtonPressAOneShot += (s, e) =>
@@ -213,12 +264,18 @@ namespace XBoxStage
                 curPos = zaberGetCurrentPos();
                 Console.WriteLine("curPos[0]: {0} \t curPos[1]: {1} \t curPos[2]: {2}", curPos[0], curPos[1], curPos[2]);
                 Console.WriteLine("BButtonPosition[0]: {0} \t BButtonPosition[1]: {1} \t BButtonPosition[2]: {2}", BButtonPosition[0], BButtonPosition[1], BButtonPosition[2]);
-                //zaberMoveStoredPositionOneAtATime(BButtonPosition, curPos);
                 zaberMoveStoredPositionAllAtOnce(BButtonPosition);
-
                 SoundPlayer a100Hz = new SoundPlayer();
-                a100Hz.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTryRefactor\XBoxStageMaster\XBoxStage\Resources\a100Hz.wav";
+                a100Hz.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTonalButtons\XBoxStageMaster\XBoxStage\Resources\a100Hz.wav";
                 a100Hz.Play();
+                a100Hz.Dispose();
+                using (System.IO.StreamWriter file = new System.IO.StreamWriter(path, true))
+                {
+                    file.Write("\n");
+                    file.Write(GetTimeStamp(DateTime.Now));
+                    file.Write(", Button B pressed: move to ({0}, {1}, {2})", BButtonPosition[0], BButtonPosition[1], BButtonPosition[2]);
+                    file.Write("\n");
+                }
             };
             OnXBoxGamepadButtonPressBOneShot += (s, e) =>
             {
@@ -234,8 +291,16 @@ namespace XBoxStage
                 //zaberMoveStoredPositionOneAtATime(XButtonPosition, curPos);
                 zaberMoveStoredPositionAllAtOnce(XButtonPosition);
                 SoundPlayer a250Hz = new SoundPlayer();
-                a250Hz.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTryRefactor\XBoxStageMaster\XBoxStage\Resources\a250Hz.wav";
+                a250Hz.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTonalButtons\XBoxStageMaster\XBoxStage\Resources\a250Hz.wav";
                 a250Hz.Play();
+                a250Hz.Dispose();
+                using (System.IO.StreamWriter file = new System.IO.StreamWriter(path, true))
+                {
+                    file.Write("\n");
+                    file.Write(GetTimeStamp(DateTime.Now));
+                    file.Write(", Button X pressed: move to ({0}, {1}, {2})", XButtonPosition[0], XButtonPosition[1], XButtonPosition[2]);
+                    file.Write("\n");
+                }
             };
             OnXBoxGamepadButtonPressXOneShot += (s, e) =>
             {
@@ -251,8 +316,16 @@ namespace XBoxStage
                 //zaberMoveStoredPositionOneAtATime(YButtonPosition, curPos);
                 zaberMoveStoredPositionAllAtOnce(YButtonPosition);
                 SoundPlayer a440Hz = new SoundPlayer();
-                a440Hz.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTryRefactor\XBoxStageMaster\XBoxStage\Resources\a440Hz.wav";
+                a440Hz.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTonalButtons\XBoxStageMaster\XBoxStage\Resources\a440Hz.wav";
                 a440Hz.Play();
+                a440Hz.Dispose();
+                using (System.IO.StreamWriter file = new System.IO.StreamWriter(path, true))
+                {
+                    file.Write("\n");
+                    file.Write(GetTimeStamp(DateTime.Now));
+                    file.Write(", Button Y pressed: move to ({0}, {1}, {2})", YButtonPosition[0], YButtonPosition[1], YButtonPosition[2]);
+                    file.Write("\n");
+                }
             };
             OnXBoxGamepadButtonPressYOneShot += (s, e) =>
             {
@@ -373,7 +446,9 @@ namespace XBoxStage
 
         public void xboxJoystick(string side, double x, double y)
         {
+            Vector joystickInput = new Vector(x, y);
             double magnitude = Math.Sqrt(x * x + y * y);
+
             int deadzone;
             bool currentStateDeadZone, lastStateDeadZone, isLeftSide;
             int xDevice, yDevice;
@@ -404,9 +479,11 @@ namespace XBoxStage
             if (magnitude > deadzone)
             {
                 currentStateDeadZone = false;
+                joystickInput.X = (joystickInput.X / magnitude) * ((magnitude - Convert.ToDouble(deadzone)) / (XBOX_MAX_RANGE - Convert.ToDouble(deadzone)));
+                joystickInput.Y = (joystickInput.Y / magnitude) * ((magnitude - Convert.ToDouble(deadzone)) / (XBOX_MAX_RANGE - Convert.ToDouble(deadzone)));
                 //send the LX and LY values to move calculating function
-                if (Math.Abs(x) > deadzone) zaberMoveVelocity(xDevice, x, y, isLeftSide);
-                if (Math.Abs(y) > deadzone) zaberMoveVelocity(yDevice, -y, x, isLeftSide);
+                if (Math.Abs(x) > deadzone) zaberMoveVelocity(xDevice, joystickInput.X);//x, y, isLeftSide);
+                if (Math.Abs(y) > deadzone) zaberMoveVelocity(yDevice, -joystickInput.Y);//-y, x, isLeftSide);
             }
             else
             {
@@ -444,21 +521,18 @@ namespace XBoxStage
             // Event handlers for buttons being pushed
             // Classic Buttons
             if (ButtonPushed(GamepadButtonFlags.A)) OnXBoxGamepadButtonPressA.Invoke(this, null);
+            if (ButtonOneShot(GamepadButtonFlags.A)) OnXBoxGamepadButtonPressAOneShot.Invoke(this, null);
             //if (ButtonPushed(GamepadButtonFlags.B)) OnXBoxGamepadButtonPressB.Invoke(this, null);
             if (m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.B) && !m_xboxStateLast.Gamepad.Buttons.HasFlag(GamepadButtonFlags.B) && !m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.DPadUp)) OnXBoxGamepadButtonPressB.Invoke(this, null);
-            if (ButtonOneShot(GamepadButtonFlags.A)) OnXBoxGamepadButtonPressAOneShot.Invoke(this, null);
             if (ButtonOneShot(GamepadButtonFlags.B)) OnXBoxGamepadButtonPressBOneShot.Invoke(this, null);
-            if (ButtonPushed(GamepadButtonFlags.X)) OnXBoxGamepadButtonPressX.Invoke(this, null);
+            //if (ButtonPushed(GamepadButtonFlags.X)) OnXBoxGamepadButtonPressX.Invoke(this, null);
+            if (m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.X) && !m_xboxStateLast.Gamepad.Buttons.HasFlag(GamepadButtonFlags.X) && !m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.DPadUp)) OnXBoxGamepadButtonPressX.Invoke(this, null);
             if (ButtonOneShot(GamepadButtonFlags.X)) OnXBoxGamepadButtonPressXOneShot.Invoke(this, null);
-            if (ButtonPushed(GamepadButtonFlags.Y)) OnXBoxGamepadButtonPressY.Invoke(this, null);
+            //if (ButtonPushed(GamepadButtonFlags.Y)) OnXBoxGamepadButtonPressY.Invoke(this, null);
+            if (m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.Y) && !m_xboxStateLast.Gamepad.Buttons.HasFlag(GamepadButtonFlags.Y) && !m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.DPadUp)) OnXBoxGamepadButtonPressY.Invoke(this, null);
             if (ButtonOneShot(GamepadButtonFlags.Y)) OnXBoxGamepadButtonPressYOneShot.Invoke(this, null);
 
-            // Shoulder buttons
-            //turn air on
-            if (m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.RightShoulder) && !m_xboxStateLast.Gamepad.Buttons.HasFlag(GamepadButtonFlags.RightShoulder)) { writeToArduino("A"); }
-            //turn air off
-            if (!m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.RightShoulder) && m_xboxStateLast.Gamepad.Buttons.HasFlag(GamepadButtonFlags.RightShoulder)) { writeToArduino("a"); }
-
+            // Shoulder and Joystick-In buttons
             if (ButtonOneShot(GamepadButtonFlags.RightShoulder)) OnXBoxGamepadButtonPressShoulderRightOneShot.Invoke(this, null);
             if (ButtonPushed(GamepadButtonFlags.LeftShoulder)) OnXBoxGamepadButtonPressShoulderLeft.Invoke(this, null);
             if (ButtonOneShot(GamepadButtonFlags.LeftShoulder)) OnXBoxGamepadButtonPressShoulderLeftOneShot.Invoke(this, null);
@@ -504,6 +578,7 @@ namespace XBoxStage
             // Do the triggers and shoulders
             var RTrig = m_xboxState.Gamepad.RightTrigger;
             var LTrig = m_xboxState.Gamepad.LeftTrigger;
+            if (RTrig != 0) arduinoSendByte(RTrig);
 
             // Do the Right and Left Thumb X, Y
             double RX = m_xboxState.Gamepad.RightThumbX;
@@ -577,7 +652,7 @@ namespace XBoxStage
                 try
                 {
                     thorDevice.WaitForSettingsInitialized(5000);
-                    if (thorDevice.IsSettingsInitialized()) Console.WriteLine("Shit shoulda initialized");
+                    if (thorDevice.IsSettingsInitialized()) Console.WriteLine("ThorDevice Should be Initialized");
                 }
                 catch (Exception)
                 {
@@ -611,7 +686,7 @@ namespace XBoxStage
         public void thorStop()
         {
             Action<UInt64> workDone = thorDevice.InitializeWaitHandler();
-            thorDevice.Stop(workDone);
+            thorDevice.Stop(workDone);            
             thorDevice.ResumeMoveMessages();
         }
 
@@ -636,6 +711,146 @@ namespace XBoxStage
             }
         }
 
+        private void arduinoSendByte(byte byteToSend)
+        {
+            byte[] bytes = new byte[] { byteToSend };
+            Arduino.Write(bytes, 0, bytes.Length);
+        }
+
+        public class MeasureModel
+        {
+            public DateTime DateTime { get; set; }
+            public double Value { get; set; }
+        }
+
+        public ChartValues<MeasureModel> hallValues { get; set; }
+        public ChartValues<MeasureModel> thermValues { get; set; }
+        public ChartValues<MeasureModel> windValues { get; set; }
+
+        public Func<double, string> DateTimeFormatter { get; set; }
+
+        public double AxisStep { get; set; }
+
+        public double AxisMax
+        {
+            get { return _axisMax; }
+            set
+            {
+                _axisMax = value;
+                OnPropertyChanged("AxisMax");
+            }
+        }
+        public double AxisMin
+        {
+            get { return _axisMin; }
+            set
+            {
+                _axisMin = value;
+                OnPropertyChanged("AxisMin");
+            }
+        }
+
+        public DispatcherTimer Timer { get; set; }
+        public bool IsDataInjectionRunning { get; set; }
+
+        private void RunDataOnClick(object sender, RoutedEventArgs e)
+        {
+            if (IsDataInjectionRunning)
+            {
+                Timer.Stop();
+                IsDataInjectionRunning = false;
+            }
+            else
+            {
+                Timer.Start();
+                IsDataInjectionRunning = true;
+            }
+        }
+
+        private void TimerOnTick(object sender, EventArgs eventArgs)
+        {
+            var now = DateTime.Now;
+            string hallReply = "";
+            string thermReply = "";
+            string windReply = "";
+
+            if (Arduino.IsOpen)
+            {
+                hallReply = Arduino.ReadTo(";");
+                thermReply = Arduino.ReadTo(";");
+                windReply = Arduino.ReadTo(";");
+                hallValues.Add(new MeasureModel
+                {
+                    DateTime = now,
+                    Value = Convert.ToDouble(hallReply)
+                });
+                thermValues.Add(new MeasureModel
+                {
+                    DateTime = now,
+                    Value = Convert.ToDouble(thermReply)
+                });
+                windValues.Add(new MeasureModel
+                {
+                    DateTime = now,
+                    Value = Convert.ToDouble(windReply)
+                });
+            }
+            else
+            {
+                hallValues.Add(new MeasureModel
+                {
+                    DateTime = now,
+                    Value = 0
+                });
+                thermValues.Add(new MeasureModel
+                {
+                    DateTime = now,
+                    Value = 0
+                });
+                windValues.Add(new MeasureModel
+                {
+                    DateTime = now,
+                    Value = 0
+                });
+            }
+
+            SetAxisLimits(now);
+
+            //lets only use the last 30 values
+            if (hallValues.Count > 60) hallValues.RemoveAt(0);
+            if (thermValues.Count > 60) thermValues.RemoveAt(0);
+            if (windValues.Count > 60) windValues.RemoveAt(0);
+
+            using (System.IO.StreamWriter file = new System.IO.StreamWriter(path, true))
+            {
+                file.WriteLine("");
+                file.Write(GetTimeStamp(DateTime.Now));
+                file.Write(", ");
+                file.Write(hallReply);
+                file.Write(", ");
+                file.Write(thermReply);
+                file.Write(", ");
+                file.Write(windReply);
+                file.Write("\n");
+            }
+        }
+
+        private void SetAxisLimits(DateTime now)
+        {
+            AxisMax = now.Ticks + TimeSpan.FromSeconds(1).Ticks; // lets force the axis to be 100ms ahead
+            AxisMin = now.Ticks - TimeSpan.FromSeconds(59).Ticks; //we only care about the last 8 seconds
+        }
+
+        public static String GetTimeAndDate(DateTime value)
+        {
+            return value.ToString("yyyyMMddHHmmssffff");
+        }
+
+        public static String GetTimeStamp(DateTime value)
+        {
+            return value.ToString("HH:mm:ss");
+        }
+
         // ----------------------------------------------------------------------
         // Zaber Functions
         // ----------------------------------------------------------------------
@@ -651,7 +866,7 @@ namespace XBoxStage
 
         // Moves a device in a direction depending on the input values 
         // from the joystick
-        void zaberMoveVelocity(int device, double moveDirection, double orthogonalDirection, bool isLeftSide)
+        void zaberMoveVelocity(int device, double percentToMoveDirectionOfTotal)//double moveDirection, double orthogonalDirection, bool isLeftSide)
         {
             int maxspeed = 0;
             switch (device)
@@ -669,28 +884,12 @@ namespace XBoxStage
                     Console.WriteLine("Default device passed - not moving anything");
                     return;
             }
-            if (moveDirection == 0) moveDirection = 1; //to avoid nans
-            if (orthogonalDirection == 0) orthogonalDirection = 1;
-            double ratio = Math.Abs(moveDirection / orthogonalDirection);
-            if (ratio > 1) ratio = 1;
-
-            int deadzone;
-            if (isLeftSide) deadzone = lDeadZone;
-            else deadzone = rDeadZone;
-
+            //Not really a percentage, as this number can be at max above or below 1,
+            //depending on what your choice of joystickVelocityModulator is
+            double percentOfMaxVelocityToMove = (Math.Exp(joystickVelocityModulator * Math.Abs(percentToMoveDirectionOfTotal)) - 1) / Math.Exp(joystickVelocityModulator);
+            double speed = percentOfMaxVelocityToMove * maxspeed;
+            int vel = (percentToMoveDirectionOfTotal > 0) ? Convert.ToInt32(speed) : Convert.ToInt32(-speed);
             string command = "";
-            int vel = 0;
-            double normedMoveDir = 0.0;
-            double magnitude = Math.Sqrt(moveDirection * moveDirection + orthogonalDirection * orthogonalDirection);
-            double normedMagnitude = magnitude / (XBOX_MAX_RANGE - deadzone); //need to change this line of code for different controllers
-
-            normedMoveDir = Convert.ToDouble(Math.Abs(moveDirection) - deadzone) / Convert.ToDouble(XBOX_MAX_RANGE - deadzone);
-            if (normedMoveDir > 1.0) normedMoveDir = 1.0;
-            // modulate input joystick value so that it maps to a normalilzed exp
-            normedMoveDir *= ratio;
-            normedMoveDir = (Math.Exp(joystickVelocityModulator * normedMoveDir) - 1) / Math.Exp(joystickVelocityModulator);
-            normedMoveDir = normedMoveDir * normedMagnitude * Convert.ToDouble(maxspeed);
-            vel = (moveDirection > 0) ? Convert.ToInt32(normedMoveDir) : Convert.ToInt32(-normedMoveDir);
             command = "/" + device + " 1 move vel " + Convert.ToString(vel) + "\r\n";
             zaberPort.Write(command);
             zaberPort.Read();
