@@ -44,25 +44,50 @@ namespace XBoxStage
 
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
-        DispatcherTimer _timer = new DispatcherTimer();
+        // Files, Counters, GUI
+        DispatcherTimer _gamepadTimer = new DispatcherTimer();
+        DispatcherTimer _dataTimer = new DispatcherTimer();
         private byte[] pingMessage = System.Text.Encoding.ASCII.GetBytes("ping\n");
-        
+        private double _axisMax;
+        private double _axisMin;
+        public int visibleDataPoints = 60;
+        public event PropertyChangedEventHandler PropertyChanged;
+        // Files
+        public string sensorFile;
+        public string buttonFile;
+        public string zaberFile; //for debugging mostly...
+        public string resourcePathRoot = @"C:\Users\Public\XBoxStageVersions\XBoxStageRefactor\XBoxStageMaster\XBoxStage\Resources\";
+        public string outputPathRoot = @"C:\Users\Public\SerialSectionSessions\";
+        // FSM 
+        public int sectionsProcessed;
+        public int loopPickUpCount;
+        public int loopDropOffCount;
+        // Stick Stuff -- make this into a data type later for sticks/consumable sticks
+        public int numberOfCols = 8; // this is specifically made for sticks as consumables
+        public int numberOfSticks = 4; //this is the number of sticks on the casette
+        public double xGridDisplacement = 5.3; //these are the relative positions of the grids
+        public double yGridDisplacement = 8.6; // on the consumable sticks
+        public double xLoopDisplacement = 3.6; // these are the relative positions of the loops
+        public double yLoopDisplacement = 3.6; // on the mats, in mm
+        public int totalNumberOfLoops = 64;
+        public bool sticksAsConsumables = true;
+
         // Thorlabs Actuator (serial number provided is specific to my device)
         public KCubeDCServo thorDevice;
         public string serialNo = "27000117";
+        public int thorPollRate = 20;
+        public decimal thorDisplacement = 1m;
 
         // Arduino and sensor output stuff
         public SerialPort Arduino = new SerialPort();
-        private double _axisMax;
-        private double _axisMin;
-        public event PropertyChangedEventHandler PropertyChanged;
-        public string filename;
-        public string path;
 
         // Zaber
-        static public int X_MAX = 1526940;
-        static public int Y_MAX = 3149606;
+        static public int X_MAX = 200000;
+        static public int Y_MAX = 400000;
         static public int Z_MAX = 305381;
+        public const int x_Device = 2;
+        public const int y_Device = 3;
+        public const int z_Device = 4;
         int MAX_X_SPEED = mmToSteps("x", 20.0);
         int MAX_Y_SPEED = mmToSteps("y", 20.0);
         int MAX_Z_SPEED = mmToSteps("z", 10.0);
@@ -71,53 +96,38 @@ namespace XBoxStage
         public int[] XButtonPosition = new int[3];
         public int[] YButtonPosition = new int[3];
         public int[] BButtonPosition = new int[3];
-        public double joystickVelocityModulator = 1.15;
+        public double joystickVelocityModulator = 1.05;
         
         // XBox
         private SharpDX.XInput.State m_xboxState;
         private SharpDX.XInput.State m_xboxStateLast;
         private SharpDX.XInput.Controller m_xbox;
         public int XBOX_MAX_RANGE = 32767;
-        public int rDeadZone = Gamepad.RightThumbDeadZone; 
-        public int lDeadZone = Gamepad.LeftThumbDeadZone;
+        public int rDeadZone = 6000; //Gamepad.RightThumbDeadZone; 
+        public int lDeadZone = 3000; //Gamepad.LeftThumbDeadZone; 
         public bool LeftLastStateDeadZone = false;
         public bool LeftCurrentStateDeadZone = false;
         public bool RightLastStateDeadZone = false;
         public bool RightCurrentStateDeadZone = false;
-        public bool SimultaneousUpDandBCur = false;
-        public bool SimultaneousUpDandBLast = false;
-        public bool SimultaneousUpDandXCur = false;
-        public bool SimultaneousUpDandXLast = false;
-        public bool SimultaneousUpDandYCur = false;
-        public bool SimultaneousUpDandYLast = false;
-        static public int POLL_RATE = 100; //in ms NOTE: XBox is limited to 30ms minimum
+        public bool SimultaneousBackandBCur = false;
+        public bool SimultaneousBackandBLast = false;
+        public bool SimultaneousBackandXCur = false;
+        public bool SimultaneousBackandXLast = false;
+        public bool SimultaneousBackandYCur = false;
+        public bool SimultaneousBackandYLast = false;
+        public bool SimultaneousDownDandBLast = false;
+        public bool SimultaneousDownDandBCur = false;
+        public bool SimultaneousDownDandXLast = false;
+        public bool SimultaneousDownDandXCur = false;
+        static public int POLL_RATE = 30; //in ms NOTE: XBox is limited to 30ms minimum
         //For the Classic Buttons
         public event EventHandler OnXBoxGamepadButtonPressA;
-        public event EventHandler OnXBoxGamepadButtonPressAOneShot;
         public event EventHandler OnXBoxGamepadButtonPressB;
-        public event EventHandler OnXBoxGamepadButtonPressBOneShot;
         public event EventHandler OnXBoxGamepadButtonPressX;
-        public event EventHandler OnXBoxGamepadButtonPressXOneShot;
         public event EventHandler OnXBoxGamepadButtonPressY;
-        public event EventHandler OnXBoxGamepadButtonPressYOneShot;
-        //For D Pad Buttons
-        public event EventHandler OnXBoxGamepadButtonPressDUp;
-        public event EventHandler OnXBoxGamepadButtonPressDUpOneShot;
-        public event EventHandler OnXBoxGamepadButtonPressDDown;
-        public event EventHandler OnXBoxGamepadButtonPressDDownOneShot;
-        public event EventHandler OnXBoxGamepadButtonPressDLeft;
-        public event EventHandler OnXBoxGamepadButtonPressDLeftOneShot;
-        public event EventHandler OnXBoxGamepadButtonPressDRight;
-        public event EventHandler OnXBoxGamepadButtonPressDRightOneShot;
-        //For the Shoulders and ThumbsIn
-        public event EventHandler OnXBoxGamepadButtonPressShoulderRight;
-        public event EventHandler OnXBoxGamepadButtonPressShoulderRightOneShot;
-        public event EventHandler OnXBoxGamepadButtonPressShoulderLeft;
-        public event EventHandler OnXBoxGamepadButtonPressShoulderLeftOneShot;
-        public event EventHandler OnXBoxGamepadButtonPressRightThumbIn;
-        public event EventHandler OnXBoxGamepadButtonPressRightThumbInOneShot;
-        public event EventHandler OnXBoxGamepadButtonPressLeftThumbIn;
-        public event EventHandler OnXBoxGamepadButtonPressLeftThumbInOneShot;
+        public event EventHandler MoveToLastDropOffPosition;
+        public event EventHandler MoveToLastPickUpPosition; 
+
 
         // ----------------------------------------------------------------------
         // Property notification boilerplate
@@ -135,38 +145,155 @@ namespace XBoxStage
             PollGamepad();
         }
 
+        // ----------------------------------------------------------------------
+        // Computer Actions
+        // ----------------------------------------------------------------------
+        // Play a sound located in resource file where soundFileName = "mysound.wav"
+        void playSound(string soundFileName)
+        {
+            SoundPlayer sound = new SoundPlayer();
+            sound.SoundLocation = resourcePathRoot + soundFileName;
+            sound.Play();
+            sound.Dispose();
+            return;
+        }
+
+        //Record one of the position button presses
+        void recordButtonPress(string button)
+        {
+            int[] buttonPosition = new int[3];
+            string message = "";
+            switch (button)
+            {
+                case "B":
+                    Array.Copy(BButtonPosition, buttonPosition, 3);
+                    break;
+                case "X":
+                    Array.Copy(XButtonPosition, buttonPosition, 3);
+                    break;
+                case "Y":
+                    Array.Copy(YButtonPosition, buttonPosition, 3);
+                    break;
+                default:
+                    Console.WriteLine("Button Pressed not registered");
+                    return;
+            }
+            message = button + ", ";
+            Console.WriteLine(message);
+            curPos = zaberGetCurrentPos();
+            Console.WriteLine("curPos:({0}, {1}, {2})", curPos[0], curPos[1], curPos[2]);
+            Console.WriteLine("futPos: ({0}, {1}, {2})", buttonPosition[0], buttonPosition[1], buttonPosition[2]);
+            using (System.IO.StreamWriter file = new System.IO.StreamWriter(buttonFile, true))
+            {
+                file.WriteLine("");
+                file.Write(GetTimeStamp(DateTime.Now));
+                file.Write(", {0}, {1}, {2}, {3}, ", button, buttonPosition[0], buttonPosition[1], buttonPosition[2]);
+                file.Write("{0}, {1}, {2}", curPos[0], curPos[1], curPos[2]);
+                file.Write("\n");
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        // GUI
+        // ----------------------------------------------------------------------
+        // Events to execute on program closing 
         void MainWindow_Closing(object sender, CancelEventArgs e)
         {
             thorDevice.StopPolling();
             thorDevice.Disconnect();
-            zaberStop(2);
-            zaberStop(3);
-            zaberStop(4);
+            zaberStop(x_Device);
+            zaberStop(y_Device);
+            zaberStop(z_Device);
             zaberPort.Close();
             Arduino.Close();
             m_xbox = null;
             
         }
 
+        // Events to execute on program loading
         void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            Console.WriteLine("attempting to play intro music");
-            SoundPlayer rocky = new SoundPlayer();
-            rocky.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTonalButtons\XBoxStageMaster\XBoxStage\Resources\trumpets.wav";
-            rocky.Play();
+            //playSound("trumpets.wav");
             m_xbox = new Controller(UserIndex.One);
             if (m_xbox.IsConnected) return;
             System.Windows.MessageBox.Show("Controller is not connected");
             App.Current.Shutdown();
         }
 
+        private void buttonDisconnect_Click(object sender, RoutedEventArgs e)
+        {
+            if (m_xbox != null)
+            {
+                m_xbox = null;
+            }
+            thorDevice.StopPolling();
+            thorDevice.Disconnect();
+            zaberStop(x_Device);
+            zaberStop(y_Device);
+            zaberStop(z_Device);
+            zaberPort.Close();
+            Arduino.Close();
+            App.Current.Shutdown();
+        }
 
-        // ----------------------------------------------------------------------
-        // MainWindow
-        // ----------------------------------------------------------------------
+        // Events to execute if user clicks loop placement checkbox
+        private void bInitialization_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender as System.Windows.Forms.CheckBox == null)
+            {
+                return;
+            }
+            if ((sender as System.Windows.Forms.CheckBox).Checked)
+            {
+                //(sender as System.Windows.Forms.CheckBox).Checked = false;
+            }
+            else
+            {
+                (sender as System.Windows.Forms.CheckBox).Checked = true;
+            }
+        }
+
+        // Events to execute if user clicks loop dropoff checkbox
+        private void xInitialization_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender as System.Windows.Forms.CheckBox == null)
+            {
+                return;
+            }
+            if ((sender as System.Windows.Forms.CheckBox).Checked)
+            {
+                (sender as System.Windows.Forms.CheckBox).Checked = false;
+            }
+            else
+            {
+                (sender as System.Windows.Forms.CheckBox).Checked = true;
+            }
+        }
+
+        // Events to execute if user clicks section pickup checkbox
+        private void yInitialization_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender as System.Windows.Forms.CheckBox == null)
+            {
+                return;
+            }
+            if ((sender as System.Windows.Forms.CheckBox).Checked)
+            {
+                (sender as System.Windows.Forms.CheckBox).Checked = false;
+            }
+            else
+            {
+                (sender as System.Windows.Forms.CheckBox).Checked = true;
+            }
+        }
+
+        private void buttonHome_click(object sender, RoutedEventArgs e)
+        {
+            //thorDevice.Home(200);
+        }
+
         public MainWindow() 
         {
-            
             // This stuff loads the window and closes it
             DataContext = this;
             Loaded += MainWindow_Loaded;
@@ -177,25 +304,34 @@ namespace XBoxStage
             arduinoInitialize();
             zaberInitialize();
 
-            //A couple Thor things that don't play nice outside of main()
-            
-            var thorAcceleration = thorDevice.AdvancedMotorLimits.AccelerationMaximum;
-            var thorSpeed = thorDevice.AdvancedMotorLimits.VelocityMaximum; //1m;
-            var thorVelParams = thorDevice.GetVelocityParams();
-            thorVelParams.Acceleration = thorAcceleration;
-            thorVelParams.MaxVelocity = thorSpeed;
-            thorDevice.SetVelocityParams(thorVelParams);
-            thorDevice.StartPolling(20);
-            
+            //Start thorDevice polling
+            thorDevice.StartPolling(thorPollRate);
+
+            //Initialize counters for pick up and drop off
+            loopPickUpCount = 0;
+            loopDropOffCount = 0;
+
             // This guy does the gamepad polling every however many ms you want it to. 
             // The higher the sampling rate, the more likely it'll bork. YOU'VE BEEN WARNED!!
-            _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(POLL_RATE) };
-            _timer.Tick += _timer_Tick;
-            _timer.Start();
+            _gamepadTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(POLL_RATE) };
+            _gamepadTimer.Tick += _timer_Tick;
+            _gamepadTimer.Start();
 
+            // Initialize filenames and data structures for sensor data
             string timeAndDate = GetTimeAndDate(DateTime.Now);
-            filename = "SensorOutput" + timeAndDate + ".txt";
-            path = @"C:\Users\ariaj\Documents\" + filename;
+            sensorFile = outputPathRoot + "sensorOutput" + timeAndDate + ".txt"; 
+            buttonFile = outputPathRoot + "buttonOutput" + timeAndDate + ".txt";
+            zaberFile = outputPathRoot + "zaberOutput" + timeAndDate + ".txt";
+
+            using (System.IO.StreamWriter file = new System.IO.StreamWriter(buttonFile, true))
+            {
+                file.Write("TimeStamp, ButtonPressed, XfuturePosition, YfuturePosition, ZfuturePosition, XcurrentPosition, YcurrentPosition, ZcurrentPosition");
+            }
+
+            using (System.IO.StreamWriter file = new System.IO.StreamWriter(sensorFile, true))
+            {
+                file.Write("TimeStamp, HallEffectReading(bytes), TemperatureReading(C), WindReading(bytes)");
+            }
 
             String timeStamp = GetTimeStamp(DateTime.Now);
             Console.WriteLine("The time stamp is: {0}", timeStamp);
@@ -204,11 +340,11 @@ namespace XBoxStage
                 .X(model => model.DateTime.Ticks)   //use DateTime.Ticks as X
                 .Y(model => model.Value);           //use the value property as Y
             var thermMapper = Mappers.Xy<MeasureModel>()
-                .X(model => model.DateTime.Ticks)   //use DateTime.Ticks as X
-                .Y(model => model.Value);           //use the value property as Y
+                .X(model => model.DateTime.Ticks)
+                .Y(model => model.Value);        
             var windMapper = Mappers.Xy<MeasureModel>()
-                .X(model => model.DateTime.Ticks)   //use DateTime.Ticks as X
-                .Y(model => model.Value);           //use the value property as Y
+                .X(model => model.DateTime.Ticks)
+                .Y(model => model.Value);        
 
             //lets save the mapper globally.
             Charting.For<MeasureModel>(hallMapper);
@@ -222,209 +358,94 @@ namespace XBoxStage
 
             //lets set how to display the X Labels
             DateTimeFormatter = value => new DateTime((long)value).ToString("mm:ss");
-
             AxisStep = TimeSpan.FromSeconds(5).Ticks;
             SetAxisLimits(DateTime.Now);
 
             // This timer does the graphing instead
-            Timer = new DispatcherTimer
+            _dataTimer = new DispatcherTimer
             {
                 Interval = TimeSpan.FromMilliseconds(1000)
             };
-            Timer.Tick += TimerOnTick;
-            IsDataInjectionRunning = false;
-
+            _dataTimer.Tick += _dataTimerOnTick;
+            _dataTimer.Start();
             DataContext = this;
-            Console.WriteLine("Inside of MainWindow()");
 
             // Do something for this button being pressed
             // Classic Buttons
-            OnXBoxGamepadButtonPressA += (s, e) =>
+            OnXBoxGamepadButtonPressA += (s, e) =>  //Button A is the Emergency Stop
             {
-                //Console.WriteLine("ButtonA -- stop all");
-                zaberStop(2);
-                zaberStop(3);
-                zaberStop(4);
+                zaberStop(x_Device);
+                zaberStop(y_Device);
+                zaberStop(z_Device);
                 thorDevice.StopImmediate();
-                SoundPlayer cancel = new SoundPlayer();
-                cancel.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTonalButtons\XBoxStageMaster\XBoxStage\Resources\buzzer.wav";
-                cancel.Play();
-                cancel.Dispose();
+                playSound("buzzer.wav");
             };
             // Do something for this button being held
-            OnXBoxGamepadButtonPressAOneShot += (s, e) =>
-            {
-                //Console.WriteLine("ButtonAOneShot");
-            };
 
-            OnXBoxGamepadButtonPressB += (s, e) =>
+            OnXBoxGamepadButtonPressB += (s, e) => //Button B places the loops
             {
-                 
-                Console.WriteLine("ButtonB Move to designated B position");
-                curPos = zaberGetCurrentPos();
-                Console.WriteLine("curPos[0]: {0} \t curPos[1]: {1} \t curPos[2]: {2}", curPos[0], curPos[1], curPos[2]);
-                Console.WriteLine("BButtonPosition[0]: {0} \t BButtonPosition[1]: {1} \t BButtonPosition[2]: {2}", BButtonPosition[0], BButtonPosition[1], BButtonPosition[2]);
-                zaberMoveStoredPositionAllAtOnce(BButtonPosition);
-                SoundPlayer a100Hz = new SoundPlayer();
-                a100Hz.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTonalButtons\XBoxStageMaster\XBoxStage\Resources\a100Hz.wav";
-                a100Hz.Play();
-                a100Hz.Dispose();
-                using (System.IO.StreamWriter file = new System.IO.StreamWriter(path, true))
+                recordButtonPress("B");
+                playSound("100Hz2s.wav");
+                zaberMoveNextDropOffPoint();
+                using (System.IO.StreamWriter file = new System.IO.StreamWriter(buttonFile, true))
                 {
-                    file.Write("\n");
+                    file.WriteLine("");
                     file.Write(GetTimeStamp(DateTime.Now));
-                    file.Write(", Button B pressed: move to ({0}, {1}, {2})", BButtonPosition[0], BButtonPosition[1], BButtonPosition[2]);
+                    file.Write(", number of loops placed on grids: ", loopDropOffCount);
                     file.Write("\n");
                 }
-            };
-            OnXBoxGamepadButtonPressBOneShot += (s, e) =>
-            {
-                //Console.WriteLine("ButtonBOneShot");
+                loopDropOffCount++;
             };
 
-            OnXBoxGamepadButtonPressX += (s, e) =>
+            OnXBoxGamepadButtonPressX += (s, e) => //Button X picks up the loops
             {
-                Console.WriteLine("ButtonX: attempt move to designated X position");
-                curPos = zaberGetCurrentPos();
-                Console.WriteLine("curPos[0]: {0} \t curPos[1]: {1} \t curPos[2]: {2}", curPos[0], curPos[1], curPos[2]);
-                Console.WriteLine("XButtonPosition[0]: {0} \t XButtonPosition[1]: {1} \t XButtonPosition[2]: {2}", XButtonPosition[0], XButtonPosition[1], XButtonPosition[2]);
-                //zaberMoveStoredPositionOneAtATime(XButtonPosition, curPos);
-                zaberMoveStoredPositionAllAtOnce(XButtonPosition);
-                SoundPlayer a250Hz = new SoundPlayer();
-                a250Hz.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTonalButtons\XBoxStageMaster\XBoxStage\Resources\a250Hz.wav";
-                a250Hz.Play();
-                a250Hz.Dispose();
-                using (System.IO.StreamWriter file = new System.IO.StreamWriter(path, true))
+                recordButtonPress("X");
+                playSound("200Hz2s.wav");
+                zaberMoveNextPickUpPoint();
+                using (System.IO.StreamWriter file = new System.IO.StreamWriter(buttonFile, true))
                 {
-                    file.Write("\n");
+                    file.WriteLine("");
                     file.Write(GetTimeStamp(DateTime.Now));
-                    file.Write(", Button X pressed: move to ({0}, {1}, {2})", XButtonPosition[0], XButtonPosition[1], XButtonPosition[2]);
+                    file.Write(", number of loops picked up: ", loopPickUpCount);
                     file.Write("\n");
                 }
-            };
-            OnXBoxGamepadButtonPressXOneShot += (s, e) =>
-            {
-                //Console.WriteLine("ButtonXOneShot");
+                loopPickUpCount++;
             };
 
-            OnXBoxGamepadButtonPressY += (s, e) =>
+            OnXBoxGamepadButtonPressY += (s, e) => //Button Y picks up the sections
             {
-                Console.WriteLine("ButtonY: attempt move to designated Y position");
-                curPos = zaberGetCurrentPos();
-                Console.WriteLine("curPos[0]: {0} \t curPos[1]: {1} \t curPos[2]: {2}", curPos[0], curPos[1], curPos[2]);
-                Console.WriteLine("YButtonPosition[0]: {0} \t YButtonPosition[1]: {1}\t YButtonPosition[2]: {2}", YButtonPosition[0], YButtonPosition[1], YButtonPosition[2]);
-                //zaberMoveStoredPositionOneAtATime(YButtonPosition, curPos);
+                recordButtonPress("Y");
+                playSound("300Hz2s.wav");
                 zaberMoveStoredPositionAllAtOnce(YButtonPosition);
-                SoundPlayer a440Hz = new SoundPlayer();
-                a440Hz.SoundLocation = @"C:\Users\ariaj\Documents\Visual Studio 2015\Projects\XBoxStageTonalButtons\XBoxStageMaster\XBoxStage\Resources\a440Hz.wav";
-                a440Hz.Play();
-                a440Hz.Dispose();
-                using (System.IO.StreamWriter file = new System.IO.StreamWriter(path, true))
-                {
-                    file.Write("\n");
-                    file.Write(GetTimeStamp(DateTime.Now));
-                    file.Write(", Button Y pressed: move to ({0}, {1}, {2})", YButtonPosition[0], YButtonPosition[1], YButtonPosition[2]);
-                    file.Write("\n");
-                }
-            };
-            OnXBoxGamepadButtonPressYOneShot += (s, e) =>
-            {
-                //Console.WriteLine("ButtonYOneShot");
             };
 
-            // DPad Buttons
-            OnXBoxGamepadButtonPressDUp += (s, e) =>
+            MoveToLastDropOffPosition += (s, e) => //Set back loopDropOff counter and move to previous loop position
             {
-                //Console.WriteLine("ButtonDUp");
-            };
-            OnXBoxGamepadButtonPressDUpOneShot += (s, e) =>
-            {
-                //Console.WriteLine("ButtonDUpOneShot");
+                loopDropOffCount -= 2;
+                zaberMoveNextDropOffPoint();
             };
 
-            OnXBoxGamepadButtonPressDDown += (s, e) =>
+            MoveToLastPickUpPosition += (s, e) => //Set back loopPickUp counter and move to previous loop position
             {
-                Console.WriteLine("ButtonDDown");
+                loopPickUpCount -= 2;
+                zaberMoveNextPickUpPoint();
             };
-            OnXBoxGamepadButtonPressDDownOneShot += (s, e) =>
-            {
-                //Console.WriteLine("ButtonDDownOneShot");
-            };
+        }
 
-            OnXBoxGamepadButtonPressDLeft += (s, e) =>
-            {
-                //Console.WriteLine("ButtonDLeft");
-                
-
-            };
-            OnXBoxGamepadButtonPressDLeftOneShot += (s, e) =>
-            {
-                //Console.WriteLine("ButtonDLeftOneShot");
-            };
-
-            OnXBoxGamepadButtonPressDRight += (s, e) =>
-            {
-                //Console.WriteLine("ButtonDRight");
-                
-            };
-            OnXBoxGamepadButtonPressDRightOneShot += (s, e) =>
-            {
-                //Console.WriteLine("ButtonDRightOneShot");
-            };
-
-            // Shoulder and ThumbsIn Buttons
-            OnXBoxGamepadButtonPressShoulderRight += (s, e) =>
-            {
-                Console.WriteLine("ButtonShoulderRight");
-                if (Arduino.IsOpen)
-                {
-                    Arduino.Write("A");
-                }
-            };
-            OnXBoxGamepadButtonPressShoulderRightOneShot += (s, e) =>
-            {
-                //Console.WriteLine("ButtonShoulderRightOneShot");
-            };
-
-            OnXBoxGamepadButtonPressShoulderLeft += (s, e) =>
-            {
-                Console.WriteLine("ButtonShoulderLeft");
-            };
-            OnXBoxGamepadButtonPressShoulderLeftOneShot += (s, e) =>
-            {
-                //Console.WriteLine("ButtonShoulderLeftOneShot");
-            };
-
-            OnXBoxGamepadButtonPressRightThumbIn += (s, e) =>
-            {
-                //Console.WriteLine("ButtonRightThumbIn");
-            };
-            OnXBoxGamepadButtonPressRightThumbInOneShot += (s, e) =>
-            {
-                //Console.WriteLine("ButtonRightThumbInOneShot");
-            };
-
-            OnXBoxGamepadButtonPressLeftThumbIn += (s, e) =>
-            {
-                //Console.WriteLine("ButtonLeftThumbIn");
-            };
-            OnXBoxGamepadButtonPressLeftThumbInOneShot += (s, e) =>
-            {
-                //Console.WriteLine("ButtonLeftThumbInOneShot");
-            };
-            
+        private void SectionCounter_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            Int32.TryParse(sectionCountTxt.Text, out sectionsProcessed);
         }
 
         // ----------------------------------------------------------------------
         // XBox Controller Functions
         // ----------------------------------------------------------------------
-        // return true if the button state just transitioned from 0 to 1
-        // Gives more control to the button
+        // Initialize the XBox controller
         public void xboxInitialize()
         {
-            // If the controller was not assigned to player One during initialization
-            // attempt to connect to a player port
+            // Attempt to connect ot any port
             m_xbox = new SharpDX.XInput.Controller(UserIndex.Any);
+            // If it cannot be connected, shut down.
             if (!m_xbox.IsConnected)
             {
                 Console.WriteLine("XBox Controller Could not be connected. Goodbye!");
@@ -433,18 +454,24 @@ namespace XBoxStage
             }
         }
 
-        private bool ButtonOneShot (GamepadButtonFlags button)
+        // Return true if button is pressed
+        private bool buttonPressed(GamepadButtonFlags button)
         {
             return !m_xboxStateLast.Gamepad.Buttons.HasFlag(button) && m_xboxState.Gamepad.Buttons.HasFlag(button);
         }
 
-        // return true if the button is pushed 
-        private bool ButtonPushed(GamepadButtonFlags button)
+        // Return true if button is released
+        private bool buttonReleased(GamepadButtonFlags button)
         {
-            return m_xboxState.Gamepad.Buttons.HasFlag(button);
+            return m_xboxStateLast.Gamepad.Buttons.HasFlag(button) && !m_xboxState.Gamepad.Buttons.HasFlag(button);
         }
 
-        public void xboxJoystick(string side, double x, double y)
+        private bool simultaneousButtons(GamepadButtonFlags button1, GamepadButtonFlags button2)
+        {
+            return m_xboxState.Gamepad.Buttons.HasFlag(button1) && m_xboxState.Gamepad.Buttons.HasFlag(button2);
+        }
+
+        public void xboxJoystick(string side, double x, double y) 
         {
             Vector joystickInput = new Vector(x, y);
             double magnitude = Math.Sqrt(x * x + y * y);
@@ -460,8 +487,8 @@ namespace XBoxStage
                     lastStateDeadZone = LeftLastStateDeadZone;
                     deadzone = lDeadZone;
                     isLeftSide = true;
-                    xDevice = 2; //corresponds to zaber x-axis
-                    yDevice = 3; //corresponds to zaber y-axis
+                    xDevice = x_Device; //corresponds to zaber x-axis
+                    yDevice = y_Device; //corresponds to zaber y-axis
                     break;
                 case "right":
                     currentStateDeadZone = RightCurrentStateDeadZone;
@@ -469,7 +496,7 @@ namespace XBoxStage
                     deadzone = rDeadZone;
                     isLeftSide = false;
                     xDevice = 0; //this will make it default in zaber move, just returning
-                    yDevice = 4; //corresponds to zaber z-axis
+                    yDevice = z_Device; //corresponds to zaber z-axis
                     break;
                 default:
                     Console.WriteLine("Joystick side picked is not valid");
@@ -501,93 +528,80 @@ namespace XBoxStage
         // Main XBox processing
         private void PollGamepad()
         {
-            // Update statuses and save buttons
             if ((m_xbox == null) || !m_xbox.IsConnected) return;
+            // Update statuses 
             m_xboxStateLast = m_xboxState;
             m_xboxState = m_xbox.GetState();
             LeftLastStateDeadZone = LeftCurrentStateDeadZone;
             RightLastStateDeadZone = RightCurrentStateDeadZone;
-            SimultaneousUpDandBLast = SimultaneousUpDandBCur;
-            SimultaneousUpDandXLast = SimultaneousUpDandXCur;
-            SimultaneousUpDandYLast = SimultaneousUpDandYCur;
-
-            if (m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.DPadUp) && m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.B)) SimultaneousUpDandBCur = true;
-            else SimultaneousUpDandBCur = false;
-            if (m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.DPadUp) && m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.X)) SimultaneousUpDandXCur = true;
-            else SimultaneousUpDandXCur = false;
-            if (m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.DPadUp) && m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.Y)) SimultaneousUpDandYCur = true;
-            else SimultaneousUpDandYCur = false;
-
-            // Event handlers for buttons being pushed
-            // Classic Buttons
-            if (ButtonPushed(GamepadButtonFlags.A)) OnXBoxGamepadButtonPressA.Invoke(this, null);
-            if (ButtonOneShot(GamepadButtonFlags.A)) OnXBoxGamepadButtonPressAOneShot.Invoke(this, null);
-            //if (ButtonPushed(GamepadButtonFlags.B)) OnXBoxGamepadButtonPressB.Invoke(this, null);
-            if (m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.B) && !m_xboxStateLast.Gamepad.Buttons.HasFlag(GamepadButtonFlags.B) && !m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.DPadUp)) OnXBoxGamepadButtonPressB.Invoke(this, null);
-            if (ButtonOneShot(GamepadButtonFlags.B)) OnXBoxGamepadButtonPressBOneShot.Invoke(this, null);
-            //if (ButtonPushed(GamepadButtonFlags.X)) OnXBoxGamepadButtonPressX.Invoke(this, null);
-            if (m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.X) && !m_xboxStateLast.Gamepad.Buttons.HasFlag(GamepadButtonFlags.X) && !m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.DPadUp)) OnXBoxGamepadButtonPressX.Invoke(this, null);
-            if (ButtonOneShot(GamepadButtonFlags.X)) OnXBoxGamepadButtonPressXOneShot.Invoke(this, null);
-            //if (ButtonPushed(GamepadButtonFlags.Y)) OnXBoxGamepadButtonPressY.Invoke(this, null);
-            if (m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.Y) && !m_xboxStateLast.Gamepad.Buttons.HasFlag(GamepadButtonFlags.Y) && !m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.DPadUp)) OnXBoxGamepadButtonPressY.Invoke(this, null);
-            if (ButtonOneShot(GamepadButtonFlags.Y)) OnXBoxGamepadButtonPressYOneShot.Invoke(this, null);
-
-            // Shoulder and Joystick-In buttons
-            if (ButtonOneShot(GamepadButtonFlags.RightShoulder)) OnXBoxGamepadButtonPressShoulderRightOneShot.Invoke(this, null);
-            if (ButtonPushed(GamepadButtonFlags.LeftShoulder)) OnXBoxGamepadButtonPressShoulderLeft.Invoke(this, null);
-            if (ButtonOneShot(GamepadButtonFlags.LeftShoulder)) OnXBoxGamepadButtonPressShoulderLeftOneShot.Invoke(this, null);
-            if (ButtonPushed(GamepadButtonFlags.RightThumb)) OnXBoxGamepadButtonPressRightThumbIn.Invoke(this, null);
-            if (ButtonOneShot(GamepadButtonFlags.RightThumb)) OnXBoxGamepadButtonPressRightThumbInOneShot.Invoke(this, null);
-            if (ButtonPushed(GamepadButtonFlags.LeftThumb)) OnXBoxGamepadButtonPressLeftThumbIn.Invoke(this, null);
-            if (ButtonOneShot(GamepadButtonFlags.LeftThumb)) OnXBoxGamepadButtonPressLeftThumbInOneShot.Invoke(this, null);
-            
-            // D Pad Buttons
-            if (ButtonPushed(GamepadButtonFlags.DPadUp)) OnXBoxGamepadButtonPressDUp.Invoke(this, null);
-            if (ButtonOneShot(GamepadButtonFlags.DPadUp)) OnXBoxGamepadButtonPressDUpOneShot.Invoke(this, null);
-            if (ButtonPushed(GamepadButtonFlags.DPadDown)) OnXBoxGamepadButtonPressDDown.Invoke(this, null);
-            if (ButtonOneShot(GamepadButtonFlags.DPadDown)) OnXBoxGamepadButtonPressDDownOneShot.Invoke(this, null);
-
-            var DR = GamepadButtonFlags.DPadRight;
-            var DL = GamepadButtonFlags.DPadLeft;
-            if (m_xboxState.Gamepad.Buttons.HasFlag(DR) && !m_xboxStateLast.Gamepad.Buttons.HasFlag(DR))
-            {
-                if (ButtonPushed(DR) && !(ButtonPushed(DL) || ButtonOneShot(DL))) thorMove(thorDevice, MotorDirection.Forward);
-            }
-
-            if (m_xboxState.Gamepad.Buttons.HasFlag(DL) && !m_xboxStateLast.Gamepad.Buttons.HasFlag(DL))
-            {
-                if (ButtonPushed(DL) && !(ButtonPushed(DR) || ButtonOneShot(DR))) thorMove(thorDevice, MotorDirection.Backward);
-            }
-            if (!m_xboxState.Gamepad.Buttons.HasFlag(DL) && m_xboxStateLast.Gamepad.Buttons.HasFlag(DL))
-            {
-                thorStop();
-            }
-            if (!m_xboxState.Gamepad.Buttons.HasFlag(DR) && m_xboxStateLast.Gamepad.Buttons.HasFlag(DR))
-            {
-                thorStop();
-            }
-
-            if (ButtonOneShot(GamepadButtonFlags.DPadLeft)) OnXBoxGamepadButtonPressDLeftOneShot.Invoke(this, null);
-            if (ButtonOneShot(GamepadButtonFlags.DPadRight)) OnXBoxGamepadButtonPressDRightOneShot.Invoke(this, null);
-
-            // Combos to save positions
-            if (SimultaneousUpDandBCur && !SimultaneousUpDandBLast) BButtonPosition = zaberGetCurrentPos();
-            if (SimultaneousUpDandXCur && !SimultaneousUpDandXLast) XButtonPosition = zaberGetCurrentPos(); 
-            if (SimultaneousUpDandYCur && !SimultaneousUpDandYLast) YButtonPosition = zaberGetCurrentPos(); 
-
-            // Do the triggers and shoulders
-            var RTrig = m_xboxState.Gamepad.RightTrigger;
-            var LTrig = m_xboxState.Gamepad.LeftTrigger;
-            if (RTrig != 0) arduinoSendByte(RTrig);
-
-            // Do the Right and Left Thumb X, Y
+            //Update the deadzone status and check for joystick controls
+            // Do the Right and Left Thumb X, Y joysticks
             double RX = m_xboxState.Gamepad.RightThumbX;
             double RY = m_xboxState.Gamepad.RightThumbY;
             double LX = m_xboxState.Gamepad.LeftThumbX;
             double LY = m_xboxState.Gamepad.LeftThumbY;
-
             xboxJoystick("left", LX, LY);
             xboxJoystick("right", RX, RY);
+
+            //Position Save Combo States Accounting
+            SimultaneousBackandBLast = SimultaneousBackandBCur;
+            SimultaneousBackandXLast = SimultaneousBackandXCur;
+            SimultaneousBackandYLast = SimultaneousBackandYCur;
+            SimultaneousBackandBCur = simultaneousButtons(GamepadButtonFlags.Back, GamepadButtonFlags.B);
+            SimultaneousBackandXCur = simultaneousButtons(GamepadButtonFlags.Back, GamepadButtonFlags.X);
+            SimultaneousBackandYCur = simultaneousButtons(GamepadButtonFlags.Back, GamepadButtonFlags.Y);
+            //Decrementing Counter States Accounting
+            SimultaneousDownDandBLast = SimultaneousDownDandBCur;
+            SimultaneousDownDandBCur = simultaneousButtons(GamepadButtonFlags.DPadDown, GamepadButtonFlags.B);
+            SimultaneousDownDandXLast = SimultaneousDownDandXCur;
+            SimultaneousDownDandXCur = simultaneousButtons(GamepadButtonFlags.DPadDown, GamepadButtonFlags.X);
+
+            // Event handlers for buttons being pushed
+            // Classic Buttons
+            if (buttonPressed(GamepadButtonFlags.A)) OnXBoxGamepadButtonPressA.Invoke(this, null);
+            if ((buttonPressed(GamepadButtonFlags.B) && !m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.Back)) && (LeftCurrentStateDeadZone && RightCurrentStateDeadZone)) OnXBoxGamepadButtonPressB.Invoke(this, null);
+            if ((buttonPressed(GamepadButtonFlags.X) && !m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.Back)) && (LeftCurrentStateDeadZone && RightCurrentStateDeadZone)) OnXBoxGamepadButtonPressX.Invoke(this, null);
+            if ((buttonPressed(GamepadButtonFlags.Y) && !m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.Back)) && (LeftCurrentStateDeadZone && RightCurrentStateDeadZone)) OnXBoxGamepadButtonPressY.Invoke(this, null);
+
+            // Left/Right Shoulder Thorlabs device control
+            if (buttonPressed(GamepadButtonFlags.RightShoulder) && !simultaneousButtons(GamepadButtonFlags.RightShoulder, GamepadButtonFlags.LeftShoulder))
+            {
+                thorMove(thorDevice, MotorDirection.Forward);
+            }
+            if (buttonPressed(GamepadButtonFlags.LeftShoulder) && !simultaneousButtons(GamepadButtonFlags.LeftShoulder, GamepadButtonFlags.RightShoulder))
+            {
+                thorMove(thorDevice, MotorDirection.Backward);
+            }
+
+            // Combos to save positions -- make it have last state too so that it updates once
+            if (SimultaneousBackandBCur && !SimultaneousBackandBLast)
+            {
+                BButtonPosition = zaberGetCurrentPos();
+                loopDropOffCount = 0;
+                bInitialization.IsChecked = true;
+            }
+            if (SimultaneousBackandXCur && !SimultaneousBackandXLast)
+            {
+                XButtonPosition = zaberGetCurrentPos();
+                loopPickUpCount = 0;
+                xInitialization.IsChecked = true;
+            }
+            if (SimultaneousBackandYCur && !SimultaneousBackandYLast)
+            {
+                YButtonPosition = zaberGetCurrentPos();
+                yInitialization.IsChecked = true;
+            }
+
+            // Combos to decrement button counters
+            if (SimultaneousDownDandBCur && !SimultaneousDownDandBLast)
+            {
+                MoveToLastDropOffPosition.Invoke(this, null);
+            }
+            if (SimultaneousDownDandXCur && !SimultaneousDownDandXLast)
+            {
+                MoveToLastPickUpPosition.Invoke(this, null);
+            }
+
         }
 
         // ----------------------------------------------------------------------
@@ -669,11 +683,13 @@ namespace XBoxStage
 
         }
 
-        public void thorMove(IGenericAdvancedMotor device, MotorDirection direction )
+        public void thorMove(IGenericAdvancedMotor device, MotorDirection direction)
         {
+            
             try
             {
-                device.MoveContinuous(direction);
+                //device.MoveContinuous(direction);
+                device.MoveRelative(direction, thorDisplacement, 100);
             }
             catch (Exception e)
             {
@@ -689,7 +705,7 @@ namespace XBoxStage
             thorDevice.Stop(workDone);            
             thorDevice.ResumeMoveMessages();
         }
-
+        
         // ----------------------------------------------------------------------
         // Arduino Functions
         // ----------------------------------------------------------------------
@@ -709,12 +725,6 @@ namespace XBoxStage
             {
                 Arduino.Write(command);
             }
-        }
-
-        private void arduinoSendByte(byte byteToSend)
-        {
-            byte[] bytes = new byte[] { byteToSend };
-            Arduino.Write(bytes, 0, bytes.Length);
         }
 
         public class MeasureModel
@@ -751,23 +761,8 @@ namespace XBoxStage
         }
 
         public DispatcherTimer Timer { get; set; }
-        public bool IsDataInjectionRunning { get; set; }
 
-        private void RunDataOnClick(object sender, RoutedEventArgs e)
-        {
-            if (IsDataInjectionRunning)
-            {
-                Timer.Stop();
-                IsDataInjectionRunning = false;
-            }
-            else
-            {
-                Timer.Start();
-                IsDataInjectionRunning = true;
-            }
-        }
-
-        private void TimerOnTick(object sender, EventArgs eventArgs)
+        private void _dataTimerOnTick(object sender, EventArgs eventArgs)
         {
             var now = DateTime.Now;
             string hallReply = "";
@@ -813,15 +808,14 @@ namespace XBoxStage
                     Value = 0
                 });
             }
-
             SetAxisLimits(now);
 
             //lets only use the last 30 values
-            if (hallValues.Count > 60) hallValues.RemoveAt(0);
-            if (thermValues.Count > 60) thermValues.RemoveAt(0);
-            if (windValues.Count > 60) windValues.RemoveAt(0);
+            if (hallValues.Count > visibleDataPoints) hallValues.RemoveAt(0);
+            if (thermValues.Count > visibleDataPoints) thermValues.RemoveAt(0);
+            if (windValues.Count > visibleDataPoints) windValues.RemoveAt(0);
 
-            using (System.IO.StreamWriter file = new System.IO.StreamWriter(path, true))
+            using (System.IO.StreamWriter file = new System.IO.StreamWriter(sensorFile, true))
             {
                 file.WriteLine("");
                 file.Write(GetTimeStamp(DateTime.Now));
@@ -871,13 +865,13 @@ namespace XBoxStage
             int maxspeed = 0;
             switch (device)
             {
-                case 2:
+                case x_Device:
                     maxspeed = MAX_X_SPEED;
                     break;
-                case 3:
+                case y_Device:
                     maxspeed = MAX_Y_SPEED;
                     break;
-                case 4:
+                case z_Device:
                     maxspeed = MAX_Z_SPEED;
                     break;
                 default:
@@ -892,7 +886,19 @@ namespace XBoxStage
             string command = "";
             command = "/" + device + " 1 move vel " + Convert.ToString(vel) + "\r\n";
             zaberPort.Write(command);
-            zaberPort.Read();
+            var reply = zaberPort.Read(); //reply and below is for debugging
+            using (System.IO.StreamWriter file = new System.IO.StreamWriter(zaberFile, true))
+            {
+                file.WriteLine("");
+                file.Write(GetTimeStamp(DateTime.Now));
+                file.WriteLine("In Function zaberMoveVelocity");
+                file.WriteLine("Command sent: ");
+                file.WriteLine(command); //record commands
+                file.WriteLine("Reply received: "); //record replies
+                file.WriteLine(reply.ToString());
+                file.Write("\n");
+            }
+            if (!(reply.ToString().Contains("--") || reply.ToString().Contains("NI"))) zaberClearWarnings(device);
         }
 
         // Stops the zaber device indicated
@@ -903,7 +909,19 @@ namespace XBoxStage
             string command = "";
             command = "/" + device + " 1 stop \r\n";
             zaberPort.Write(command);
-            zaberPort.Read();
+            var reply = zaberPort.Read(); //reply and below is for debugging
+            using (System.IO.StreamWriter file = new System.IO.StreamWriter(zaberFile, true))
+            {
+                file.WriteLine("");
+                file.Write(GetTimeStamp(DateTime.Now));
+                file.WriteLine("In Function zaberStop");
+                file.WriteLine("Command sent: ");
+                file.WriteLine(command); //record commands
+                file.WriteLine("Reply received: "); //record replies
+                file.WriteLine(reply.ToString());
+                file.Write("\n");
+            }
+            if (!(reply.ToString().Contains("--") || reply.ToString().Contains("NI"))) zaberClearWarnings(device);
         }
 
         // Moves the actuators from the current position(curPos)
@@ -911,9 +929,9 @@ namespace XBoxStage
         // fly zones after determing the move sequence.
         void zaberMoveStoredPositionOneAtATime(int[] futPos, int[] curPos)
         {
-            var axisX = new ZaberAsciiAxis(zaberPort, 2, 1); // device 2, x axis
-            var axisY = new ZaberAsciiAxis(zaberPort, 3, 1); // device 3, y axis
-            var axisZ = new ZaberAsciiAxis(zaberPort, 4, 1); // device 4, z axis
+            var axisX = new ZaberAsciiAxis(zaberPort, x_Device, 1); 
+            var axisY = new ZaberAsciiAxis(zaberPort, y_Device, 1); 
+            var axisZ = new ZaberAsciiAxis(zaberPort, z_Device, 1);
             Console.WriteLine("In zaberMoveStoredPosition");
             int[] moveSequence = new int[3] { -1, -1, -1 };
             if (futPos.Length != 3) Console.WriteLine("In correct number of position parameters. Please input x,y,z");
@@ -925,13 +943,13 @@ namespace XBoxStage
             {
                 switch (moveSequence[i])
                 {
-                    case 2: // this correlates to the x axis
+                    case x_Device: // this correlates to the x axis
                         axisX.MoveAbsolute(futPos[0]);
                         break;
-                    case 3: // this correlates to the y axis
+                    case y_Device: // this correlates to the y axis
                         axisY.MoveAbsolute(futPos[1]);
                         break;
-                    case 4: // this correlates to the z axis
+                    case z_Device: // this correlates to the z axis
                         axisZ.MoveAbsolute(futPos[2]);
                         break;
                     default:
@@ -943,27 +961,112 @@ namespace XBoxStage
 
         void zaberMoveStoredPositionAllAtOnce(int[] futPos)
         {
-            string moveX = "/2 1 move abs " + futPos[0].ToString() + "\r\n";
-            string moveY = "/3 1 move abs " + futPos[1].ToString() + "\r\n";
-            string moveZ = "/4 1 move abs " + futPos[2].ToString() + "\r\n";
+            string moveX = "/" + x_Device + " 1 move abs " + futPos[0].ToString() + "\r\n";
+            string moveY = "/" + y_Device + " 1 move abs " + futPos[1].ToString() + "\r\n";
+            string moveZ = "/" + z_Device + " 1 move abs " + futPos[2].ToString() + "\r\n";
 
             zaberPort.Write(moveX);
             zaberPort.Write(moveY);
             zaberPort.Write(moveZ);
-            zaberPort.Read();
-            zaberPort.Read();
-            zaberPort.Read();
+            var reply1 = zaberPort.Read(); //reply1-reply3 and below is for debugging
+            var reply2 = zaberPort.Read(); //still need to include '.Read()' for proper 
+            var reply3 = zaberPort.Read(); //functioning
+            using (System.IO.StreamWriter file = new System.IO.StreamWriter(zaberFile, true))
+            {
+                file.WriteLine("");
+                file.Write(GetTimeStamp(DateTime.Now));
+                file.WriteLine("In Function zaberMoveStoredPositionAllAtOnce");
+                file.WriteLine("Commands sent: ");
+                file.WriteLine(moveX); //record commands
+                file.WriteLine(moveY); 
+                file.WriteLine(moveZ);
+                file.WriteLine("Replies received: "); //record replies
+                file.WriteLine(reply1.ToString());
+                file.WriteLine(reply2.ToString());
+                file.WriteLine(reply3.ToString());
+                file.Write("\n");
+            }
+            if (!(reply1.ToString().Contains("--") || reply1.ToString().Contains("NI"))) zaberClearWarnings(x_Device);
+            if (!(reply2.ToString().Contains("--") || reply2.ToString().Contains("NI"))) zaberClearWarnings(y_Device);
+            if (!(reply3.ToString().Contains("--") || reply3.ToString().Contains("NI"))) zaberClearWarnings(z_Device);
+        }
+
+        // Calculates next move for loop drop off and executes it
+        void zaberMoveNextDropOffPoint()
+        {
+            int[] futPos = new int[3];
+            int xDisplacementFromOrigin = 0;
+            int yDisplacementFromOrigin = 0;
+            int colPosition, colNumber;
+            colPosition = loopDropOffCount % numberOfSticks;
+            colNumber = loopDropOffCount / numberOfSticks;
+            int virtColNum = colNumber;
+            if (colNumber >= numberOfCols)
+            {
+                xDisplacementFromOrigin -= mmToSteps("x", 2.65);
+                yDisplacementFromOrigin += mmToSteps("y", 2.0);
+                virtColNum -= numberOfCols;
+            }
+            xDisplacementFromOrigin += virtColNum * mmToSteps("x", xGridDisplacement);
+            yDisplacementFromOrigin += colPosition * mmToSteps("y", yGridDisplacement);
+            futPos[0] = xDisplacementFromOrigin + BButtonPosition[0];
+            futPos[1] = yDisplacementFromOrigin + BButtonPosition[1];
+            futPos[2] = BButtonPosition[2];
+            zaberMoveStoredPositionAllAtOnce(futPos);
+            if (loopDropOffCount >= totalNumberOfLoops) loopDropOffCount = 0; //reset for next cassette
+        }
+
+        // Calculates next move for loop pick up and executes it
+        void zaberMoveNextPickUpPoint()
+        {
+            int[] futPos = new int[3];
+            int xDisplacementFromOrigin = 0;
+            int yDisplacementFromOrigin = 0;
+            int colPosition, colNumber;
+            colNumber = loopPickUpCount / 10;
+            colPosition = loopPickUpCount % 10;
+
+            // do the col of 10 that has staggered downward position w.r.t. top leftmost element
+            if ((loopPickUpCount / 10) % 2 != 0)
+            {
+                yDisplacementFromOrigin += mmToSteps("y", (yLoopDisplacement/2));
+            }
+            xDisplacementFromOrigin += colNumber * mmToSteps("x", xLoopDisplacement);
+            yDisplacementFromOrigin += colPosition * mmToSteps("y", yLoopDisplacement);
+            futPos[0] = xDisplacementFromOrigin + XButtonPosition[0];
+            futPos[1] = yDisplacementFromOrigin + XButtonPosition[1];
+            futPos[2] = XButtonPosition[2];
+            zaberMoveStoredPositionAllAtOnce(futPos);
         }
 
         // Gets current position
         public int[] zaberGetCurrentPos()
         {
-            var axisX = new ZaberAsciiAxis(zaberPort, 2, 1); // device 2, x axis
-            var axisY = new ZaberAsciiAxis(zaberPort, 3, 1); // device 3, y axis
-            var axisZ = new ZaberAsciiAxis(zaberPort, 4, 1); // device 4, z axis
+            var axisX = new ZaberAsciiAxis(zaberPort, x_Device, 1); 
+            var axisY = new ZaberAsciiAxis(zaberPort, y_Device, 1); 
+            var axisZ = new ZaberAsciiAxis(zaberPort, z_Device, 1); 
             int[] curPos = new int[3] { axisX.GetPosition(), axisY.GetPosition(), axisZ.GetPosition() };
 
             return curPos;
+        }
+
+        // Clears warning messages
+        public void zaberClearWarnings(int device)
+        {
+            string clearWarnings = "/" + device + " warnings clear\r\n"; //add "clear" at the end?
+            zaberPort.Write(clearWarnings);
+            var reply = zaberPort.Read();
+            using (System.IO.StreamWriter file = new System.IO.StreamWriter(zaberFile, true))
+            {
+                file.WriteLine("");
+                file.Write(GetTimeStamp(DateTime.Now));
+                file.WriteLine("In Function zaberClearWarnings");
+                file.WriteLine("Command sent: ");
+                file.WriteLine(clearWarnings); //record commands
+                file.WriteLine("Reply received: "); //record replies
+                file.WriteLine(reply.ToString());
+                file.Write("\n");
+            }
         }
 
         // Converts mm to steps given the axis and mm to convert
@@ -984,7 +1087,7 @@ namespace XBoxStage
                     break;
                 // Z Axis is a X-LSQ150B Zaber Actuator
                 case "z":
-                    microStepSize = 0.00049609375; //in mm
+                    microStepSize = 0.000248046875; //in mm
                     break;
                 default:
                     Console.WriteLine("Axis selected does not exist");
@@ -1093,9 +1196,9 @@ namespace XBoxStage
                 if (!isNoFlyZone(tryPos2))
                 {
                     Console.WriteLine("xyz should work");
-                    moveSequence[0] = 2;
-                    moveSequence[1] = 3;
-                    moveSequence[2] = 4;
+                    moveSequence[0] = x_Device;
+                    moveSequence[1] = y_Device;
+                    moveSequence[2] = z_Device;
                 }
                 else
                 {
@@ -1104,9 +1207,9 @@ namespace XBoxStage
                     if (!isNoFlyZone(tryPos2))
                     {
                         Console.WriteLine("xzy should work");
-                        moveSequence[0] = 2;
-                        moveSequence[1] = 4;
-                        moveSequence[2] = 3;
+                        moveSequence[0] = x_Device;
+                        moveSequence[1] = z_Device;
+                        moveSequence[2] = y_Device;
                     }
                 }
             }
@@ -1121,9 +1224,9 @@ namespace XBoxStage
                 if (!isNoFlyZone(tryPos2))
                 {
                     Console.WriteLine("yxz should work");
-                    moveSequence[0] = 3;
-                    moveSequence[1] = 2;
-                    moveSequence[2] = 4;
+                    moveSequence[0] = y_Device;
+                    moveSequence[1] = x_Device;
+                    moveSequence[2] = z_Device;
                 }
                 else
                 {
@@ -1132,9 +1235,9 @@ namespace XBoxStage
                     if (!isNoFlyZone(tryPos2))
                     {
                         Console.WriteLine("yzx should work");
-                        moveSequence[0] = 3;
-                        moveSequence[1] = 4;
-                        moveSequence[2] = 2;
+                        moveSequence[0] = y_Device;
+                        moveSequence[1] = z_Device;
+                        moveSequence[2] = x_Device;
                     }
                 }
             }
@@ -1149,9 +1252,9 @@ namespace XBoxStage
                 if (!isNoFlyZone(tryPos2))
                 {
                     Console.WriteLine("zxy should work");
-                    moveSequence[0] = 4;
-                    moveSequence[1] = 2;
-                    moveSequence[2] = 3;
+                    moveSequence[0] = z_Device;
+                    moveSequence[1] = x_Device;
+                    moveSequence[2] = y_Device;
                 }
                 else
                 {
@@ -1160,9 +1263,9 @@ namespace XBoxStage
                     if (!isNoFlyZone(tryPos2))
                     {
                         Console.WriteLine("zyx should work");
-                        moveSequence[0] = 4;
-                        moveSequence[1] = 3;
-                        moveSequence[2] = 2;
+                        moveSequence[0] = z_Device;
+                        moveSequence[1] = y_Device;
+                        moveSequence[2] = x_Device;
                     }
                 }
             }
@@ -1171,30 +1274,6 @@ namespace XBoxStage
             //can meet requirements of avoiding NoFlyZones.
 
             return moveSequence;
-        }
-
-        // ----------------------------------------------------------------------
-        // GUI Functions
-        // ----------------------------------------------------------------------
-        private void buttonDisconnect_Click(object sender, RoutedEventArgs e)
-        {
-            if (m_xbox != null)
-            {
-                m_xbox = null;
-            }
-            thorDevice.StopPolling();
-            thorDevice.Disconnect();
-            zaberStop(2);
-            zaberStop(3);
-            zaberStop(4);
-            zaberPort.Close();
-            Arduino.Close();
-            App.Current.Shutdown();
-        }
-
-        private void buttonHome_click(object sender, RoutedEventArgs e)
-        {
-            thorDevice.Home(200);
         }
 
     }

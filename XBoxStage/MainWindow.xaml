@@ -4,23 +4,49 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:XBoxStage"
+        xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
         mc:Ignorable="d"
-        
-        Title="XBoxStage" Height="400" Width="800"
-        Background="{Binding EnabledBrush}">
+        Title="XBoxStage" Height="400" Width="800">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="395*"/>
-            <ColumnDefinition Width="124*"/>
         </Grid.ColumnDefinitions>
-        <Image x:Name="image" Margin="10,29,10,51.429" Source="elite.png" d:LayoutOverrides="LeftMargin, RightMargin, TopMargin, BottomMargin"/>
-        <StackPanel Grid.Column="1" Margin="10,14.05,10,127.379" d:LayoutOverrides="LeftMargin, RightMargin, TopMargin, BottomMargin">
-            <Button x:Name="buttonConnect" Content="Connect" Height="19" Click="buttonConnect_Click" d:LayoutOverrides="LeftPosition, RightPosition" Margin="0,4"/>
-            <Button x:Name="buttonDisconnect" Content="Disconnect" Height="19" Click="buttonDisconnect_Click" d:LayoutOverrides="LeftPosition, RightPosition" Margin="0,4"/>
-            <Button x:Name="buttonHome" Content="Home" Height="19" Margin="0,4" Click="buttonHome_click"/>
-            <Button x:Name="buttonTest" Content="Test1" Height="19" Margin="0,4" Click="buttonTest_click"/>
-            <TextBlock x:Name="textBlockPosX" TextWrapping="Wrap" Text="{Binding PosX}" FontSize="24" Foreground="#FFF80202" Margin="0,4"/>
-            <TextBlock x:Name="textBlockPoxY" TextWrapping="Wrap" Text="{Binding PosY}" FontSize="24" Foreground="#FFF80202" Margin="0,4"/>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"></RowDefinition>
+            <RowDefinition Height="Auto"></RowDefinition>
+            <RowDefinition Height="*"></RowDefinition>
+        </Grid.RowDefinitions>
+        <StackPanel Orientation="Horizontal">
+            <Button VerticalAlignment="Top" x:Name="buttonDisconnect" Content="Disconnect" Height="19" Click="buttonDisconnect_Click" Width="100" d:LayoutOverrides="LeftPosition, RightPosition" Margin="0,4"/>
+            <Button VerticalAlignment="Top" x:Name="buttonHome" Content="Home" Height="19" Margin="0,4" Click="buttonHome_click" Width="100"/>
+            <CheckBox VerticalAlignment="Top" x:Name="bInitialization" Content="Loop Placement Initialized" Click="bInitialization_Click"/>
+            <CheckBox VerticalAlignment="Top" x:Name="xInitialization" Content="Loop Pickup Initialized" Click="xInitialization_Click"/>
+            <CheckBox VerticalAlignment="Top" x:Name="yInitialization" Content="Section Pickup Initialized" Click="yInitialization_Click"/>
+            <TextBlock x:Name="textBlock" TextWrapping="Wrap" Text="Sections Processed: " VerticalAlignment="Top"/>
+            <TextBox x:Name="sectionCountTxt" TextWrapping="Wrap" VerticalAlignment="Top" TextChanged="SectionCounter_TextChanged"/>
         </StackPanel>
+        <lvc:CartesianChart Grid.Row="2" DisableAnimations="True">
+            <lvc:CartesianChart.AxisY>
+                <lvc:Axis Foreground="DodgerBlue" Title="Hall Effect Measured"/>
+                <lvc:Axis Foreground="IndianRed" Title="Temperature Measured" Position="RightTop" Separator="{x:Static lvc:DefaultAxes.CleanSeparator}"/>
+                <lvc:Axis Foreground="DarkOliveGreen" Title="Wind Measured" Position="RightTop" Separator="{x:Static lvc:DefaultAxes.CleanSeparator}"/>
+            </lvc:CartesianChart.AxisY>
+            <lvc:CartesianChart.Series>
+                <lvc:LineSeries Values="{Binding hallValues}" PointDiameter="6" StrokeThickness="2" ScalesYAt="0" />
+                <lvc:LineSeries Values="{Binding thermValues}" PointDiameter="6" StrokeThickness="2" ScalesYAt="1"/>
+                <lvc:LineSeries Values="{Binding windValues}" PointDiameter="6" StrokeThickness="2" ScalesYAt="2"/>
+            </lvc:CartesianChart.Series>
+            <lvc:CartesianChart.AxisX>
+                <lvc:Axis LabelFormatter="{Binding DateTimeFormatter}" 
+                          MaxValue="{Binding AxisMax}" 
+                          MinValue="{Binding AxisMin}"
+                          DisableAnimations="True" IsMerged="True">
+                    <lvc:Axis.Separator>
+                        <lvc:Separator Step="{Binding AxisStep}" StrokeThickness="1" StrokeDashArray="2">
+                        </lvc:Separator>
+                    </lvc:Axis.Separator>
+                </lvc:Axis>
+            </lvc:CartesianChart.AxisX>
+        </lvc:CartesianChart>
     </Grid>
 </Window>
