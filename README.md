@@ -1,8 +1,8 @@
-# JoystickProject
+# JoystickProject #
 
 The purpose of this project is to decrease the time taken in ultramicrotome sectioning by increasing automation of the process.  In our setup, we have an Arduino, 3 Zaber actuators, and 1 Thorlabs actuator.  At this time, the Arduino controls a blower, but will probably control more things in the future.  The Zaber actuators are daisy chained to make a pair of tweezers move in x,y,z directions, while the Thorlabs actuator will be used to open and close the tweezers for grabbing purposes.
 
-**"XBoxStage"**
+##XBoxStage##
 I took code written by @jaybo and modified it so that I have an XBox controller controlling an Arduino (Uno on COM5 at baud = 9600), 3 Zaber actuators(on COM6, baudrate = 9600), and 1 Thorlabs actuator controlled by a KCube DCServo.  I use a WPF in Visual Studio C#.  This project depends on SharpDX.XInput, Thorlabs.MotionControl.DeviceManager, Thorlabs.MotionControl.GenericMotor, Thorlabs.MotionControl.KCube.DCServo(http://www.thorlabs.us/Software/Motion%20Control/KINESIS/Application/KINESIS%20Install%20x64/setup.exe), Zaber, Zaber.Serial.Core(http://zaber.com/software/zaber-core-serial-csharp-v1.2.zip), and Live-Charts(@beto-rodriguez https://github.com/beto-rodriguez/Live-Charts).
 
 This project uses a timer to poll the gamepad.
