@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:XBoxStage"
         xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
         mc:Ignorable="d"
-        Title="XBoxStage" Height="400" Width="800">
+        Title="XBoxStage" Height="1000" Width="1000">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="395*"/>
@@ -16,16 +16,35 @@
             <RowDefinition Height="Auto"></RowDefinition>
             <RowDefinition Height="*"></RowDefinition>
         </Grid.RowDefinitions>
-        <StackPanel Orientation="Horizontal">
-            <Button VerticalAlignment="Top" x:Name="buttonDisconnect" Content="Disconnect" Height="19" Click="buttonDisconnect_Click" Width="100" d:LayoutOverrides="LeftPosition, RightPosition" Margin="0,4"/>
-            <Button VerticalAlignment="Top" x:Name="buttonHome" Content="Home" Height="19" Margin="0,4" Click="buttonHome_click" Width="100"/>
-            <CheckBox VerticalAlignment="Top" x:Name="bInitialization" Content="Loop Placement Initialized" Click="bInitialization_Click"/>
-            <CheckBox VerticalAlignment="Top" x:Name="xInitialization" Content="Loop Pickup Initialized" Click="xInitialization_Click"/>
-            <CheckBox VerticalAlignment="Top" x:Name="yInitialization" Content="Section Pickup Initialized" Click="yInitialization_Click"/>
-            <TextBlock x:Name="textBlock" TextWrapping="Wrap" Text="Sections Processed: " VerticalAlignment="Top"/>
-            <TextBox x:Name="sectionCountTxt" TextWrapping="Wrap" VerticalAlignment="Top" TextChanged="SectionCounter_TextChanged"/>
+        <StackPanel Orientation="Horizontal" x:Name="stackPanel" Visibility="Collapsed" Grid.Row="1">
+            <CheckBox VerticalAlignment="Top" x:Name="bInitialization" Content="Loop Placement Initialized" Click="bInitialization_Click" />
+            <TextBlock x:Name="BBlock" TextWrapping="Wrap" Text=" B Button: " VerticalAlignment="Top" />
+            <TextBox x:Name="BBox" TextWrapping="Wrap" VerticalAlignment="Top" Width="145" Text="{Binding bButtonPosition}" />
+            <CheckBox VerticalAlignment="Top" x:Name="xInitialization" Content="Loop Pickup Initialized" Click="xInitialization_Click" />
+            <TextBlock x:Name="XBlock" TextWrapping="Wrap" Text=" X Button: " VerticalAlignment="Top" />
+            <TextBox x:Name="XBox" TextWrapping="Wrap" VerticalAlignment="Top" Width="145" Text="{Binding xButtonPosition}" />
+            <CheckBox VerticalAlignment="Top" x:Name="yInitialization" Content="Section Pickup Initialized" Click="yInitialization_Click" />
+            <TextBlock x:Name="YBlock" TextWrapping="Wrap" Text=" Y Button: " VerticalAlignment="Top" />
+            <TextBox x:Name="YBox" TextWrapping="Wrap" VerticalAlignment="Top" Width="145" Text="{Binding yButtonPosition}" />
         </StackPanel>
-        <lvc:CartesianChart Grid.Row="2" DisableAnimations="True">
+        <TextBlock x:Name="textBlockSectionStartNo" Text="Section Starting Number: " Height="33" Margin="302,9,552,0" VerticalAlignment="Top" RenderTransformOrigin="0.505,-0.676"/>
+        <TextBox Width="100" x:Name ="textBoxSectionStartNo" TextChanged="UserChangedStartingNo_TextChanged" Margin="466,9,426,928" RenderTransformOrigin="-1.401,3.909"/>
+        <TextBlock Width="100" x:Name="textBlock" Text="Number of Sticks: " Height="33" Margin="340,37,552,0" VerticalAlignment="Top"/>
+        <TextBox Width="100" x:Name ="textBox" TextChanged="UserChangedNumberOfSticks_TextChanged" Margin="466,37,426,900" RenderTransformOrigin="-1.401,3.909"/>
+        <TextBlock x:Name="textBlockGrids" Text="Number of Grids Per Stick: " Margin="293,70,552,869"/>
+        <TextBox Width="100" x:Name ="textBoxGrids" TextChanged="UserChangedNumberOfGrids_TextChanged" Margin="466,70,426,869"/>
+        <TextBlock x:Name="textBlockXGridSpace" Text="X Displacement of Grids (mm): " Margin="595,9,228,928"/>
+        <TextBox Width="100" x:Name ="textBoxXGridSpace" TextChanged="UserChangedXGridSpace_TextChanged" Margin="764,10,128,927"/>
+        <TextBlock x:Name="textBlockYGridSpace" Text="Y Displacement of Grids (mm): " Margin="595,39,228,900" RenderTransformOrigin="0.513,2.473"/>
+        <TextBox Width="100" x:Name ="textBoxYGridSpace" TextChanged="UserChangedYGridSpace_TextChanged" Margin="764,39,128,900" RenderTransformOrigin="0.531,2.215"/>
+        <TextBlock x:Name="textBlockStaggerGridSpace" Text="Y Stagger of Grids (mm): " Margin="595,69,228,869" RenderTransformOrigin="0.513,2.473" Visibility="Collapsed"/>
+        <TextBox Width="100" x:Name ="textBoxStaggerGridSpace" TextChanged="UserChangedStaggerGridSpace_TextChanged" Margin="764,70,128,869" RenderTransformOrigin="0.531,2.215" Visibility="Collapsed"/>
+        <Button x:Name="StartButtonInitialization" Margin="371,129,372,800" RenderTransformOrigin="-1.439,0.93" Content="Finished Grid Configuration" Click="FinishedGridConfig_Click" Visibility="Collapsed"/>
+        <ComboBox x:Name="comboBox" RenderTransformOrigin="0.522,0.63" 
+                  Loaded="comboBox_Loaded" SelectionChanged="comboBox_SelectionChanged" Margin="10,39,746,900"/>
+        <Canvas Background="Gray" Name="canvasArea" Height="400" VerticalAlignment="Bottom"></Canvas>
+        <TextBlock x:Name="textBlock1" HorizontalAlignment="Left" Height="24" Margin="10,9,0,0" TextWrapping="Wrap" Text="Choose Configuration" VerticalAlignment="Top" Width="120"/>
+        <lvc:CartesianChart x:Name="SensorDataView" Grid.Row="2" DisableAnimations="True" Visibility="Collapsed">
             <lvc:CartesianChart.AxisY>
                 <lvc:Axis Foreground="DodgerBlue" Title="Hall Effect Measured"/>
                 <lvc:Axis Foreground="IndianRed" Title="Temperature Measured" Position="RightTop" Separator="{x:Static lvc:DefaultAxes.CleanSeparator}"/>

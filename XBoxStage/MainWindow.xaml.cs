@@ -21,20 +21,20 @@ using System.Windows.Input;
 using System.Runtime;
 using System.Media;
 
-using LiveCharts;
+using LiveCharts; 
 using LiveCharts.Wpf;
 using LiveCharts.Configurations;
 
-using SharpDX.XInput;
+using SharpDX.XInput; 
 
-using Thorlabs.MotionControl.DeviceManagerCLI;
-using Thorlabs.MotionControl.GenericMotorCLI;
+using Thorlabs.MotionControl.DeviceManagerCLI; 
+using Thorlabs.MotionControl.GenericMotorCLI; 
 using Thorlabs.MotionControl.GenericMotorCLI.ControlParameters; 
 using Thorlabs.MotionControl.GenericMotorCLI.AdvancedMotor;
 using Thorlabs.MotionControl.GenericMotorCLI.Settings;
 using Thorlabs.MotionControl.KCube.DCServoCLI;
 
-using Zaber;
+using Zaber; 
 using Zaber.PlugIns;
 using Zaber.Serial.Core;
 
@@ -44,33 +44,82 @@ namespace XBoxStage
 
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
-        // Files, Counters, GUI
+        // Counters, GUI
         DispatcherTimer _gamepadTimer = new DispatcherTimer();
         DispatcherTimer _dataTimer = new DispatcherTimer();
         private byte[] pingMessage = System.Text.Encoding.ASCII.GetBytes("ping\n");
         private double _axisMax;
         private double _axisMin;
         public int visibleDataPoints = 60;
+        public string bButtonPosition = "null";
+        public string xButtonPosition = "null";
+        public string yButtonPosition = "null";
         public event PropertyChangedEventHandler PropertyChanged;
+        //from wpfshapeapp
+        public string gridPlacementConfig;
+        public int numberOfSticks;
+        public int numberOfGridsPerStick;
+        public int cassettePositionNumber;
+        public int totalNumberOfGrids;
+        public int gridLabelCounter;
+        public int sectionStartingNo;
+        public int sectionNumber;
+        public int cassetteNumber;
+        public double stickWidth;
+        public int gridStickWidth = 45;
+        public int gridDiameter = 35;
+        public System.Windows.Media.Color gridColor = Colors.AntiqueWhite;
+        public System.Windows.Media.Color loopColor = Colors.LightGray;
+        public System.Windows.Media.Brush LoopColor = System.Windows.Media.Brushes.LightGray;
+        public System.Windows.Media.Brush StickColor = System.Windows.Media.Brushes.LightGray;
+        public System.Windows.Media.Color canvasColor = Colors.Gray;
+        public System.Windows.Media.Brush CanvasColor = System.Windows.Media.Brushes.Gray;
+        public System.Windows.Media.Color gridReadyColor = Colors.Green;
+        public System.Windows.Media.Color gridDeadColor = Colors.Red;
+        public System.Windows.Media.Color boatColor = Colors.Black;
+        public System.Windows.Media.Brush BoatColor = System.Windows.Media.Brushes.Black;
+        public System.Windows.Media.Brush SectionColor = System.Windows.Media.Brushes.Wheat;
+        public System.Windows.Media.Color promptColor = Colors.Red;
+
+        public int loopDiameter = 45;
+        public int appDiameter = 30;
+        public int boatRight = 5;
+        public int boatTop = 5;
+        public int loopRight = 45;
+        public int loopTop = 65;
+        public int stickLeft = 5;
+        public int stickTop = 5;
+        public const string rowsColConfig = "Rows then Columns";
+        public const string colsRowConfig = "Columns then Rows";
+        public const string staggered = "Sticks as Consumables(staggered)";
         // Files
         public string sensorFile;
         public string buttonFile;
         public string zaberFile; //for debugging mostly...
+        public string sectionPositionFile;
         public string resourcePathRoot = @"C:\Users\Public\XBoxStageVersions\XBoxStageRefactor\XBoxStageMaster\XBoxStage\Resources\";
         public string outputPathRoot = @"C:\Users\Public\SerialSectionSessions\";
-        // FSM 
-        public int sectionsProcessed;
-        public int loopPickUpCount;
-        public int loopDropOffCount;
         // Stick Stuff -- make this into a data type later for sticks/consumable sticks
         public int numberOfCols = 8; // this is specifically made for sticks as consumables
-        public int numberOfSticks = 4; //this is the number of sticks on the casette
+        //public int numberOfSticks = 4; //this is the number of sticks on the casette
         public double xGridDisplacement = 5.3; //these are the relative positions of the grids
-        public double yGridDisplacement = 8.6; // on the consumable sticks
-        public double xLoopDisplacement = 3.6; // these are the relative positions of the loops
-        public double yLoopDisplacement = 3.6; // on the mats, in mm
-        public int totalNumberOfLoops = 64;
+        public double yGridStaggerDisplacement = 2.0; // on the consumable sticks
+        public double yGridDisplacement = 8.6; // these are the relative positions of the loops
+        public double xLoopDisplacement = 3.6; // on the mats, in mm
+        public double yLoopDisplacement = 3.6; // 
         public bool sticksAsConsumables = true;
+        public bool stickInfoInitialized = false;
+        // FSM 
+        public int State = -1;
+        public int LastState = -1;
+        public const int INITIALIZATION_STATE = 0;
+        public const int PICKING_UP_LOOP_STATE = 1;
+        public const int PICKING_UP_SECTION_STATE = 2;
+        public const int PLACING_SECTION_STATE = 3;
+        public bool bReady;
+        public bool xReady;
+        public bool yReady;
+        public int loopPickUpCount; //counter for loop being picked up
 
         // Thorlabs Actuator (serial number provided is specific to my device)
         public KCubeDCServo thorDevice;
@@ -78,7 +127,8 @@ namespace XBoxStage
         public int thorPollRate = 20;
         public decimal thorDisplacement = 1m;
 
-        // Arduino and sensor output stuff
+        // Arduino and sensor output stuff -- use the sketch WindHallAirTempV2.0.ino
+        // to control the Thorlabs and solenoid air puffer
         public SerialPort Arduino = new SerialPort();
 
         // Zaber
@@ -140,7 +190,7 @@ namespace XBoxStage
 
         // The _time_Tick function happens every x ms (set in MainWindow())
         // and polls the gamepad each time
-        void _timer_Tick(object sender, EventArgs e)
+        void _gamepadTick(object sender, EventArgs e)
         {
             PollGamepad();
         }
@@ -162,24 +212,39 @@ namespace XBoxStage
         void recordButtonPress(string button)
         {
             int[] buttonPosition = new int[3];
-            string message = "";
+            string buttonMessage = "";
+            string stateMessage = "";
             switch (button)
             {
                 case "B":
+                    stateMessage = "Fail to drop off section. Film potentially broken at " + cassettePositionNumber.ToString() + ". Advancing to next drop off location";
+                    stateMessage = (LastState == PICKING_UP_LOOP_STATE ? "Fail to place section on stick. Returning to place section" : LastState == PICKING_UP_SECTION_STATE ? "Picked up section, advancing to stick drop off." : LastState == PLACING_SECTION_STATE ? stateMessage : "LastState Undefined") ;
                     Array.Copy(BButtonPosition, buttonPosition, 3);
                     break;
                 case "X":
+                    stateMessage = "Section number " + sectionNumber.ToString() + " placed at " + cassettePositionNumber.ToString() + ", picking up next loop";
+                    stateMessage = (LastState == PICKING_UP_LOOP_STATE ? "Failed to pick up last loop, advancing to next loop" : LastState == PICKING_UP_SECTION_STATE ? "Failed to pick up section, returning to pick up loop" : LastState == PLACING_SECTION_STATE ? stateMessage : "LastState Undefined");
                     Array.Copy(XButtonPosition, buttonPosition, 3);
                     break;
                 case "Y":
+                    stateMessage = "Attempting to remove section number " + sectionNumber.ToString() + " from boat";
+                    stateMessage = (LastState == PICKING_UP_LOOP_STATE ? stateMessage : LastState == PICKING_UP_SECTION_STATE ? "Failed to pick up section, trying again" : LastState == PLACING_SECTION_STATE ? "Failed to pick up section? Returning to boat" : "LastState Undefined");
                     Array.Copy(YButtonPosition, buttonPosition, 3);
+                    break;
+                case "DownB":
+                    stateMessage = "Overshot stick downoff point, backing up to cassettePosition " + cassettePositionNumber.ToString();
+                    Array.Copy(BButtonPosition, buttonPosition, 3);
+                    break;
+                case "DownX":
+                    stateMessage = "Overshot loop pickup point, backing up loop pick up position.";
+                    Array.Copy(XButtonPosition, buttonPosition, 3);
                     break;
                 default:
                     Console.WriteLine("Button Pressed not registered");
                     return;
             }
-            message = button + ", ";
-            Console.WriteLine(message);
+            buttonMessage = button + ", ";
+            Console.WriteLine(buttonMessage);
             curPos = zaberGetCurrentPos();
             Console.WriteLine("curPos:({0}, {1}, {2})", curPos[0], curPos[1], curPos[2]);
             Console.WriteLine("futPos: ({0}, {1}, {2})", buttonPosition[0], buttonPosition[1], buttonPosition[2]);
@@ -188,8 +253,39 @@ namespace XBoxStage
                 file.WriteLine("");
                 file.Write(GetTimeStamp(DateTime.Now));
                 file.Write(", {0}, {1}, {2}, {3}, ", button, buttonPosition[0], buttonPosition[1], buttonPosition[2]);
-                file.Write("{0}, {1}, {2}", curPos[0], curPos[1], curPos[2]);
-                file.Write("\n");
+                file.Write("{0}, {1}, {2}, {3}, {4}, {5}", curPos[0], curPos[1], curPos[2], LastState, State, stateMessage);
+            }
+        }
+
+        //Function that records the sections at given cassette position
+        void recordSectionAtPosition()
+        {
+            string positionData = "";
+            using (System.IO.StreamWriter file = new System.IO.StreamWriter(sectionPositionFile, true))
+            {
+                file.WriteLine("");
+                file.Write(GetTimeStamp(DateTime.Now));
+                positionData = "cassette Number: "+ cassetteNumber +"\t sectionNumberAtCassettePosition[" + cassettePositionNumber + "]: " + sectionNumber;
+                file.WriteLine(positionData);
+            }
+            return;
+        }
+
+        //save the image of the cassette before closing program or moving onto the next cassette
+        private void saveCanvasImage()
+        {
+            string fileName = outputPathRoot + "cassetteNo" + cassetteNumber + "At" + GetTimeAndDate(DateTime.Now) + ".png";
+            System.Windows.Media.Imaging.RenderTargetBitmap rtb = new System.Windows.Media.Imaging.RenderTargetBitmap((int)canvasArea.RenderSize.Width,
+                (int)canvasArea.RenderSize.Height, 96d, 96d, System.Windows.Media.PixelFormats.Default);
+            rtb.Render(canvasArea);
+
+            System.Windows.Media.Imaging.BitmapEncoder pngEncoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            pngEncoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+
+
+            using (var fs = System.IO.File.OpenWrite(fileName))
+            {
+                pngEncoder.Save(fs);
             }
         }
 
@@ -213,26 +309,9 @@ namespace XBoxStage
         // Events to execute on program loading
         void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            //playSound("trumpets.wav");
             m_xbox = new Controller(UserIndex.One);
             if (m_xbox.IsConnected) return;
             System.Windows.MessageBox.Show("Controller is not connected");
-            App.Current.Shutdown();
-        }
-
-        private void buttonDisconnect_Click(object sender, RoutedEventArgs e)
-        {
-            if (m_xbox != null)
-            {
-                m_xbox = null;
-            }
-            thorDevice.StopPolling();
-            thorDevice.Disconnect();
-            zaberStop(x_Device);
-            zaberStop(y_Device);
-            zaberStop(z_Device);
-            zaberPort.Close();
-            Arduino.Close();
             App.Current.Shutdown();
         }
 
@@ -245,7 +324,10 @@ namespace XBoxStage
             }
             if ((sender as System.Windows.Forms.CheckBox).Checked)
             {
-                //(sender as System.Windows.Forms.CheckBox).Checked = false;
+                (sender as System.Windows.Forms.CheckBox).Checked = false;
+                bButtonPosition = "(0, 0, 0)";
+                BBox.Text = bButtonPosition;
+                bReady = true;
             }
             else
             {
@@ -263,6 +345,9 @@ namespace XBoxStage
             if ((sender as System.Windows.Forms.CheckBox).Checked)
             {
                 (sender as System.Windows.Forms.CheckBox).Checked = false;
+                xButtonPosition = "(0, 0, 0)";
+                XBox.Text = xButtonPosition;
+                xReady = true;
             }
             else
             {
@@ -280,16 +365,14 @@ namespace XBoxStage
             if ((sender as System.Windows.Forms.CheckBox).Checked)
             {
                 (sender as System.Windows.Forms.CheckBox).Checked = false;
+                yButtonPosition = "(0, 0, 0)";
+                YBox.Text = yButtonPosition;
+                yReady = true;
             }
             else
             {
                 (sender as System.Windows.Forms.CheckBox).Checked = true;
             }
-        }
-
-        private void buttonHome_click(object sender, RoutedEventArgs e)
-        {
-            //thorDevice.Home(200);
         }
 
         public MainWindow() 
@@ -298,6 +381,7 @@ namespace XBoxStage
             DataContext = this;
             Loaded += MainWindow_Loaded;
             Closing += MainWindow_Closing;
+            InitializeComponent();
 
             //Initialize Controlled Parts
             thorInitialize();
@@ -308,24 +392,86 @@ namespace XBoxStage
             thorDevice.StartPolling(thorPollRate);
 
             //Initialize counters for pick up and drop off
-            loopPickUpCount = 0;
-            loopDropOffCount = 0;
+            State = INITIALIZATION_STATE;
+            bReady = false; //these guys keep track of what buttons are initialized
+            xReady = false;
+            yReady = false;
+            loopPickUpCount = 0; // initialize counters to zero
+            cassettePositionNumber = 0;
 
             // This guy does the gamepad polling every however many ms you want it to. 
             // The higher the sampling rate, the more likely it'll bork. YOU'VE BEEN WARNED!!
             _gamepadTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(POLL_RATE) };
-            _gamepadTimer.Tick += _timer_Tick;
+            _gamepadTimer.Tick += _gamepadTick;
             _gamepadTimer.Start();
+
+            // GUI Stuff -- set all the bindings up
+            InitializeComponent();
+            cassetteNumber = 1;
+            numberOfSticks = 4;
+            cassettePositionNumber = -1;
+            sectionNumber = sectionStartingNo;
+            textBox.SetBinding(System.Windows.Controls.TextBox.TextProperty, new System.Windows.Data.Binding(numberOfSticks.ToString())
+            {
+                Source = numberOfSticks.ToString(),
+                Mode = System.Windows.Data.BindingMode.TwoWay
+            });
+            textBox.Text = numberOfSticks.ToString();
+
+            numberOfGridsPerStick = 16;
+            textBoxGrids.SetBinding(System.Windows.Controls.TextBox.TextProperty, new System.Windows.Data.Binding(numberOfGridsPerStick.ToString())
+            {
+                Source = numberOfGridsPerStick.ToString(),
+                Mode = System.Windows.Data.BindingMode.TwoWay
+            });
+            textBoxGrids.Text = numberOfGridsPerStick.ToString();
+
+            comboBox.SetBinding(System.Windows.Controls.ComboBox.TextProperty, new System.Windows.Data.Binding(gridPlacementConfig)
+            {
+                Source = gridPlacementConfig,
+                Mode = System.Windows.Data.BindingMode.OneWay
+            });
+
+            textBoxXGridSpace.SetBinding(System.Windows.Controls.TextBox.TextProperty, new System.Windows.Data.Binding(xGridDisplacement.ToString())
+            {
+                Source = xGridDisplacement.ToString(),
+                Mode = System.Windows.Data.BindingMode.OneWay
+            });
+            textBoxXGridSpace.Text = xGridDisplacement.ToString();
+
+            textBoxYGridSpace.SetBinding(System.Windows.Controls.TextBox.TextProperty, new System.Windows.Data.Binding(yGridDisplacement.ToString())
+            {
+                Source = yGridDisplacement.ToString(),
+                Mode = System.Windows.Data.BindingMode.OneWay
+            });
+            textBoxYGridSpace.Text = yGridDisplacement.ToString();
+
+            textBoxStaggerGridSpace.SetBinding(System.Windows.Controls.TextBox.TextProperty, new System.Windows.Data.Binding(yGridStaggerDisplacement.ToString())
+            {
+                Source = yGridStaggerDisplacement.ToString(),
+                Mode = System.Windows.Data.BindingMode.OneWay
+            });
+            textBoxStaggerGridSpace.Text = yGridStaggerDisplacement.ToString();
+
+            textBoxSectionStartNo.SetBinding(System.Windows.Controls.TextBox.TextProperty, new System.Windows.Data.Binding(sectionStartingNo.ToString())
+            {
+                Source = sectionStartingNo.ToString(),
+                Mode = System.Windows.Data.BindingMode.OneWay
+            });
+            textBoxSectionStartNo.Text = sectionStartingNo.ToString();
+
+            gridLabelCounter = 0;
 
             // Initialize filenames and data structures for sensor data
             string timeAndDate = GetTimeAndDate(DateTime.Now);
             sensorFile = outputPathRoot + "sensorOutput" + timeAndDate + ".txt"; 
             buttonFile = outputPathRoot + "buttonOutput" + timeAndDate + ".txt";
             zaberFile = outputPathRoot + "zaberOutput" + timeAndDate + ".txt";
+            sectionPositionFile = outputPathRoot + "sectionsAtPositions" + timeAndDate + ".txt";
 
             using (System.IO.StreamWriter file = new System.IO.StreamWriter(buttonFile, true))
             {
-                file.Write("TimeStamp, ButtonPressed, XfuturePosition, YfuturePosition, ZfuturePosition, XcurrentPosition, YcurrentPosition, ZcurrentPosition");
+                file.Write("TimeStamp, ButtonPressed, XfuturePosition, YfuturePosition, ZfuturePosition, XcurrentPosition, YcurrentPosition, ZcurrentPosition, LastState, State, State Change Message");
             }
 
             using (System.IO.StreamWriter file = new System.IO.StreamWriter(sensorFile, true))
@@ -380,61 +526,726 @@ namespace XBoxStage
                 thorDevice.StopImmediate();
                 playSound("buzzer.wav");
             };
-            // Do something for this button being held
 
             OnXBoxGamepadButtonPressB += (s, e) => //Button B places the loops
             {
+                double[] pos = new double[2];
+                LastState = State; 
+                State = PLACING_SECTION_STATE;
                 recordButtonPress("B");
-                playSound("100Hz2s.wav");
-                zaberMoveNextDropOffPoint();
-                using (System.IO.StreamWriter file = new System.IO.StreamWriter(buttonFile, true))
+                switch (LastState)
                 {
-                    file.WriteLine("");
-                    file.Write(GetTimeStamp(DateTime.Now));
-                    file.Write(", number of loops placed on grids: ", loopDropOffCount);
-                    file.Write("\n");
+                    case PICKING_UP_LOOP_STATE: // corresponds to action "B3"
+                        sectionNumber--; //QUESTIONABLE
+                        zaberMoveNextDropOffPoint();
+                        drawLoop();
+                        drawSectionInLoop();
+                        cassettePositionNumber--;
+                        if (sectionNumber < sectionStartingNo) sectionNumber = sectionStartingNo;
+                        if (cassettePositionNumber < -1)
+                        {
+                            cassettePositionNumber = -1;
+                        }
+                        pos = getCanvasPositionForCassettePositionNumber(cassettePositionNumber);
+                        colorGridAtPositionXY(gridReadyColor, pos[0], pos[1]);
+                        break;
+                    case PICKING_UP_SECTION_STATE: // corresponds to action "B1"
+                        zaberMoveNextDropOffPoint();
+                        //update available actions
+                        removeSectionInBoat();
+                        drawSectionInLoop();
+                        //turn grid it's about to be placed on green
+                        pos = getCanvasPositionForCassettePositionNumber(cassettePositionNumber);
+                        colorGridAtPositionXY(gridReadyColor, pos[0], pos[1]);
+                        break;
+                    case PLACING_SECTION_STATE: // corresponds to action "B2"
+                        zaberMoveNextDropOffPoint();
+                        pos = getCanvasPositionForCassettePositionNumber(cassettePositionNumber);
+                        colorGridAtPositionXY(gridDeadColor, pos[0], pos[1]);
+                        cassettePositionNumber++;
+                        pos = getCanvasPositionForCassettePositionNumber(cassettePositionNumber);
+                        colorGridAtPositionXY(gridReadyColor, pos[0], pos[1]);
+                        if (cassettePositionNumber >= totalNumberOfGrids) //show dialogue box
+                        {
+                            reachedEndOfCassette();
+                        }
+                        break;
                 }
-                loopDropOffCount++;
             };
 
             OnXBoxGamepadButtonPressX += (s, e) => //Button X picks up the loops
             {
+                LastState = State; 
+                State = PICKING_UP_LOOP_STATE;
                 recordButtonPress("X");
-                playSound("200Hz2s.wav");
                 zaberMoveNextPickUpPoint();
-                using (System.IO.StreamWriter file = new System.IO.StreamWriter(buttonFile, true))
-                {
-                    file.WriteLine("");
-                    file.Write(GetTimeStamp(DateTime.Now));
-                    file.Write(", number of loops picked up: ", loopPickUpCount);
-                    file.Write("\n");
-                }
                 loopPickUpCount++;
+                switch (LastState)
+                {
+                    case PICKING_UP_LOOP_STATE: //corresponds to action "X2"
+                        break;
+                    case PICKING_UP_SECTION_STATE: //corresponds to action "X1"
+                        removeLoop();
+                        removeSectionFromLoop();
+                        break;
+                    case PLACING_SECTION_STATE: //corresponds to action "X3"
+                        double[] pos = new double[2];
+                        removeLoop();
+                        //turn grid gridColor and label the grid with section number
+                        if (cassettePositionNumber >= 0)
+                        {
+                            pos = getCanvasPositionForCassettePositionNumber(cassettePositionNumber);
+                            colorGridAtPositionXY(gridColor, pos[0], pos[1]);
+                            labelGrid(pos[0] + gridDiameter / 2, pos[1] + gridDiameter / 4, sectionNumber.ToString(), Colors.Black);
+                            sectionNumber++;
+                        }
+                        cassettePositionNumber++;
+                        if (cassettePositionNumber >= totalNumberOfGrids) //show dialogue box
+                        {
+                            reachedEndOfCassette();
+                        }
+                        recordSectionAtPosition();
+                        break;
+                }
             };
 
             OnXBoxGamepadButtonPressY += (s, e) => //Button Y picks up the sections
             {
+                LastState = State; 
+                State = PICKING_UP_SECTION_STATE;
                 recordButtonPress("Y");
-                playSound("300Hz2s.wav");
                 zaberMoveStoredPositionAllAtOnce(YButtonPosition);
+                switch (LastState)
+                {
+                    case PICKING_UP_LOOP_STATE: //corresponds to action "Y1"
+                        drawSectionInBoat();
+                        drawLoop();
+                        break;
+                    case PICKING_UP_SECTION_STATE: //corresponds to action "Y2"
+                        break;
+                    case PLACING_SECTION_STATE: //corresponds to action "Y3"
+                        break;
+                }
             };
 
+            // maybe make these two only invokable when in their buttons' specific state
             MoveToLastDropOffPosition += (s, e) => //Set back loopDropOff counter and move to previous loop position
             {
-                loopDropOffCount -= 2;
+                LastState = State;
+                State = PLACING_SECTION_STATE;
                 zaberMoveNextDropOffPoint();
+                double[] pos = new double[2];
+                pos = getCanvasPositionForCassettePositionNumber(cassettePositionNumber);
+                colorGridAtPositionXY(gridColor, pos[0], pos[1]);
+                cassettePositionNumber -= 2;
+                //sectionNumber--;
+                if (sectionNumber < sectionStartingNo) sectionNumber = sectionStartingNo;
+                if (cassettePositionNumber < -1)
+                {
+                    cassettePositionNumber = -1;
+                }
+                pos = getCanvasPositionForCassettePositionNumber(cassettePositionNumber);
+                colorGridAtPositionXY(gridReadyColor, pos[0], pos[1]);
             };
 
             MoveToLastPickUpPosition += (s, e) => //Set back loopPickUp counter and move to previous loop position
             {
+                LastState = State;
+                State = PICKING_UP_LOOP_STATE;
                 loopPickUpCount -= 2;
                 zaberMoveNextPickUpPoint();
             };
         }
 
-        private void SectionCounter_TextChanged(object sender, TextChangedEventArgs e)
+        // update in the number of sticks
+        private void UserChangedNumberOfSticks_TextChanged(object sender, TextChangedEventArgs e)
         {
-            Int32.TryParse(sectionCountTxt.Text, out sectionsProcessed);
+            Int32.TryParse(textBox.Text, out numberOfSticks);
+            if (numberOfSticks > 50) numberOfSticks = 50;
+            updateCassette();
+            isGridConfigFinished();
+        }
+
+        // update in the number of grids
+        private void UserChangedNumberOfGrids_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            Int32.TryParse(textBoxGrids.Text, out numberOfGridsPerStick);
+            if (numberOfGridsPerStick > 50) numberOfGridsPerStick = 50;
+            totalNumberOfGrids = numberOfGridsPerStick * numberOfSticks;
+            updateCassette();
+            isGridConfigFinished();
+        }
+
+        // update the x displacement between grids
+        private void UserChangedXGridSpace_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            Double.TryParse(textBoxXGridSpace.Text, out xGridDisplacement);
+            updateCassette();
+            isGridConfigFinished();
+        }
+
+        // update the x displacement between grids
+        private void UserChangedYGridSpace_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            Double.TryParse(textBoxYGridSpace.Text, out yGridDisplacement);
+            updateCassette();
+            isGridConfigFinished();
+        }
+
+        // update the staggered y displacement 
+        private void UserChangedStaggerGridSpace_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            Double.TryParse(textBoxStaggerGridSpace.Text, out yGridStaggerDisplacement);
+            updateCassette();
+            isGridConfigFinished();
+        }
+
+        // update the section start number
+        private void UserChangedStartingNo_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            Int32.TryParse(textBoxSectionStartNo.Text, out sectionStartingNo);
+            updateCassette();
+            isGridConfigFinished();
+            sectionNumber = sectionStartingNo;
+        }
+
+        // check to see if there's enough information to start the FSM
+        private void isGridConfigFinished()
+        {
+            if (numberOfSticks != 0 && numberOfGridsPerStick != 0 && xGridDisplacement != 0 && yGridDisplacement != 0)
+            {
+                if (gridPlacementConfig != staggered)
+                {
+                    StartButtonInitialization.Visibility = System.Windows.Visibility.Visible;
+                    return;
+                }
+                else if (gridPlacementConfig == staggered && yGridStaggerDisplacement != 0)
+                {
+                    StartButtonInitialization.Visibility = System.Windows.Visibility.Visible;
+                    return;
+                }
+            }
+            StartButtonInitialization.Visibility = System.Windows.Visibility.Collapsed;
+            return;
+        }
+
+        // hide the grid parameters on the GUI
+        public void hideGridParameters()
+        {
+            comboBox.Visibility = System.Windows.Visibility.Collapsed;
+            textBlockSectionStartNo.Visibility = System.Windows.Visibility.Collapsed;
+            textBoxSectionStartNo.Visibility = System.Windows.Visibility.Collapsed;
+            textBlock.Visibility = System.Windows.Visibility.Collapsed;
+            textBox.Visibility = System.Windows.Visibility.Collapsed;
+            textBlockGrids.Visibility = System.Windows.Visibility.Collapsed;
+            textBoxGrids.Visibility = System.Windows.Visibility.Collapsed;
+            textBlockXGridSpace.Visibility = System.Windows.Visibility.Collapsed;
+            textBlockYGridSpace.Visibility = System.Windows.Visibility.Collapsed;
+            textBoxXGridSpace.Visibility = System.Windows.Visibility.Collapsed;
+            textBoxYGridSpace.Visibility = System.Windows.Visibility.Collapsed;
+            textBlockStaggerGridSpace.Visibility = System.Windows.Visibility.Collapsed;
+            textBoxStaggerGridSpace.Visibility = System.Windows.Visibility.Collapsed;
+            StartButtonInitialization.Visibility = System.Windows.Visibility.Collapsed;
+            textBlock1.Visibility = System.Windows.Visibility.Collapsed;
+            clearLines();
+            clearLabels();
+        }
+
+        //show all the important post-grid initialization stuff
+        private void showDataAndCassette()
+        {
+            stackPanel.Visibility = System.Windows.Visibility.Visible;
+            SensorDataView.Visibility = System.Windows.Visibility.Visible;
+        }
+
+        // begin the FSM
+        public void FinishedGridConfig_Click(object sender, RoutedEventArgs e)
+        {
+            //change visibility of the different GUI elements
+            hideGridParameters();
+            showDataAndCassette();
+            drawBoat();
+            //draw on canvas where to initialize loop pick up/section drop off/boat area
+            initializationPrompt("b");
+        }
+
+        private void initializationPrompt(string button)
+        {
+            TextBlock prompt = new TextBlock();
+            int x, y;
+            switch (button)
+            {
+                case "b":
+                    prompt.Text = "Please move foreceps to first cassette position.\nOnce you are at the desired location, save position by pressing XBox 'Save' and XBox 'B' buttons simultaneously.";
+                    x = stickLeft;
+                    Canvas.SetLeft(prompt, x);
+                    y = (int)stickWidth + stickTop;
+                    break;
+                case "x":
+                    prompt.Text = "Please move foreceps to first loop pick up position.\nOnce you are at the desired location, save position by pressing XBox 'Save' and XBox 'X' buttons simultaneously.";
+                    x = 150;
+                    Canvas.SetLeft(prompt, x);
+                    y = 100;
+                    break;
+                case "y":
+                    prompt.Text = "Please move foreceps to the section pick up position.\nOnce you are at the desired location, save position by pressing XBox 'Save' and XBox 'Y' buttons simultaneously.";
+                    x = boatRight + 50;
+                    Canvas.SetRight(prompt, x);
+                    y = boatTop + 30;
+                    break;
+                default:
+                    prompt.Text = "";
+                    x = 0;
+                    Canvas.SetLeft(prompt, x);
+                    y = 0;
+                    break;
+            }
+            prompt.Foreground = new SolidColorBrush(promptColor);
+            Canvas.SetTop(prompt, y);
+            canvasArea.Children.Add(prompt);
+        }
+
+        private void reachedEndOfCassette()
+        {
+            MessageBoxResult nextCassette = System.Windows.MessageBox.Show("You have reached the end of the cassette. \nContinue to next cassette?", "Reload Cassette", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+            switch (nextCassette)
+            {
+                case MessageBoxResult.Yes: //keep numbers, save canvas, reset cassette, increment cassette number
+                    cassetteNumber++;
+                    cassettePositionNumber = -1;
+                    saveCanvasImage();
+                    updateCassette();
+                    hideGridParameters();
+                    recordSectionAtPosition();
+                    drawBoat();
+                    break;
+                case MessageBoxResult.No: //save canvas and data, exit program
+                    saveCanvasImage();
+                    recordSectionAtPosition();
+                    Environment.Exit(0);
+                    return;
+                case MessageBoxResult.Cancel: //continue
+                    break;
+            }
+        }
+
+        // automatic selection when box is loaded
+        private void comboBox_Loaded(object sender, RoutedEventArgs e)
+        {
+            List<string> gridConfigOptions = new List<string>();
+            gridConfigOptions.Add(rowsColConfig);
+            gridConfigOptions.Add(colsRowConfig);
+            gridConfigOptions.Add(staggered);
+
+            var comboBox = sender as System.Windows.Controls.ComboBox;
+
+            comboBox.ItemsSource = gridConfigOptions;
+            comboBox.SelectedIndex = 2;
+            updateCassette();
+        }
+
+        // update stick type when changed
+        private void comboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var comboBox = sender as System.Windows.Controls.ComboBox;
+            gridPlacementConfig = comboBox.SelectedItem as string;
+            this.Title = gridPlacementConfig;
+            if (gridPlacementConfig == staggered) //make the staggering info visible
+            {
+                textBoxStaggerGridSpace.Visibility = System.Windows.Visibility.Visible;
+                textBlockStaggerGridSpace.Visibility = System.Windows.Visibility.Visible;
+            }
+            else if (gridPlacementConfig != staggered)
+            {
+                textBoxStaggerGridSpace.Visibility = System.Windows.Visibility.Collapsed;
+                textBlockStaggerGridSpace.Visibility = System.Windows.Visibility.Collapsed;
+            }
+            updateCassette();
+        }
+
+        // update cassette
+        private void updateCassette()
+        {
+            clearCanvas();
+            stickWidth = numberOfGridsPerStick * gridStickWidth;
+            totalNumberOfGrids = numberOfGridsPerStick * numberOfSticks;
+            switch (gridPlacementConfig)
+            {
+                case rowsColConfig:
+                    if (numberOfGridsPerStick > 0)
+                    {
+                        drawSticks();
+                        labelGridSticks();
+                        drawStickDistLines();
+                    }
+                    break;
+                case colsRowConfig:
+                    if (numberOfGridsPerStick > 0)
+                    {
+                        drawSticks();
+                        labelGridSticks();
+                        drawStickDistLines();
+                    }
+                    break;
+                case staggered:
+                    stickWidth = (numberOfGridsPerStick) * gridStickWidth * .8;
+                    if (numberOfGridsPerStick > 0)
+                    {
+                        drawSticks();
+                        drawStickDistLines();
+                    }
+                    break;
+            }
+        }
+
+        //clear the canvas of labels and shapes  -- GOOD
+        private void clearCanvas()
+        {
+            clearLabels();
+            clearLines();
+            clearShapes();
+            gridLabelCounter = 0;
+        }
+
+        //clear all the lines on the canvas
+        private void clearLines()
+        {
+            var lines = canvasArea.Children.OfType<Line>().ToList();
+            foreach (var line in lines)
+            {
+                canvasArea.Children.Remove(line);
+            }
+        }
+
+        //clear all the labels on the canvas
+        private void clearLabels()
+        {
+            var labels = canvasArea.Children.OfType<TextBlock>().ToList();
+            foreach (var label in labels)
+            {
+                canvasArea.Children.Remove(label);
+            }
+        }
+
+        //clear the distance showing labels on the canvas
+        private void clearDistLabels()
+        {
+            var labels = canvasArea.Children.OfType<TextBlock>().ToList();
+            foreach (var label in labels)
+            {
+                if (label.Text.Contains("mm")) canvasArea.Children.Remove(label);
+            }
+        }
+
+        //clear all the shapes on the canvas
+        private void clearShapes()
+        {
+            var shapes = canvasArea.Children.OfType<Shape>().ToList();
+            foreach (var shape in shapes)
+            {
+                canvasArea.Children.Remove(shape);
+            }
+        }
+
+        // draw the boat
+        private void drawBoat()
+        {
+            Shape boat = new System.Windows.Shapes.Rectangle() { Fill = BoatColor, Height = 200, Width = 100, RadiusX = 2, RadiusY = 2 };
+            Canvas.SetRight(boat, boatRight);
+            Canvas.SetTop(boat, boatTop);
+            canvasArea.Children.Add(boat);
+            TextBlock boatText = new TextBlock();
+            boatText.Text = "Boat";
+            boatText.Foreground = new SolidColorBrush(Colors.White);
+            Canvas.SetRight(boatText, boatRight + 40);
+            Canvas.SetTop(boatText, boatTop + 10);
+            canvasArea.Children.Add(boatText);
+        }
+
+        //draw a section floating in the boat
+        private void drawSectionInBoat()
+        {
+            Shape section = new System.Windows.Shapes.Rectangle() { Fill = SectionColor, Height = 10, Width = 10, RadiusX = 2, RadiusY = 2 };
+            Canvas.SetRight(section, boatRight + 50);
+            Canvas.SetTop(section, boatTop + 40);
+            canvasArea.Children.Add(section);
+        }
+
+        //erase the section in the boat
+        private void removeSectionInBoat()
+        {
+            Shape section = new System.Windows.Shapes.Rectangle() { Fill = BoatColor, Height = 12, Width = 12, RadiusX = 2, RadiusY = 2 };
+            Canvas.SetRight(section, boatRight + 50);
+            Canvas.SetTop(section, boatTop + 40);
+            canvasArea.Children.Add(section);
+        }
+
+        // draw the section in the loop
+        private void drawSectionInLoop()
+        {
+            Shape section = new System.Windows.Shapes.Rectangle() { Fill = SectionColor, Height = 10, Width = 10, RadiusX = 2, RadiusY = 2 };
+            Canvas.SetRight(section, loopRight + loopDiameter / 2 - 4);
+            Canvas.SetTop(section, loopTop + loopDiameter / 2 - 4);
+            canvasArea.Children.Add(section);
+        }
+
+        //erase the section from the loop
+        private void removeSectionFromLoop()
+        {
+            Shape section = new System.Windows.Shapes.Rectangle() { Fill = BoatColor, Height = 10, Width = 10, RadiusX = 0, RadiusY = 0 };
+            Canvas.SetRight(section, loopRight + loopDiameter / 2 - 4);
+            Canvas.SetTop(section, loopTop + loopDiameter / 2 - 4);
+            canvasArea.Children.Add(section);
+        }
+
+        //draw the loop
+        private void drawLoop()
+        {
+            Shape loop = new Ellipse() { Height = loopDiameter, Width = loopDiameter };
+            RadialGradientBrush brush = new RadialGradientBrush();
+            brush.GradientStops.Add(new GradientStop(loopColor, 0.250));
+            brush.GradientStops.Add(new GradientStop(loopColor, 0.100));
+            brush.GradientStops.Add(new GradientStop(loopColor, 8));
+            loop.Fill = brush;
+            Canvas.SetRight(loop, loopRight);
+            Canvas.SetTop(loop, loopTop);
+            canvasArea.Children.Add(loop);
+
+            Shape handle = new System.Windows.Shapes.Rectangle() { Fill = LoopColor, Height = 10, Width = 10, RadiusX = 0, RadiusY = 0 };
+            Canvas.SetRight(handle, loopRight + loopDiameter);
+            Canvas.SetTop(handle, loopTop + loopDiameter / 2 - 4);
+            canvasArea.Children.Add(handle);
+
+            Shape apperature = new Ellipse() { Height = appDiameter, Width = appDiameter };
+            RadialGradientBrush appBrush = new RadialGradientBrush();
+            appBrush.GradientStops.Add(new GradientStop(boatColor, 0.250));
+            appBrush.GradientStops.Add(new GradientStop(boatColor, 0.100));
+            appBrush.GradientStops.Add(new GradientStop(boatColor, 8));
+            apperature.Fill = appBrush;
+            Canvas.SetRight(apperature, loopRight + (loopDiameter - appDiameter) / 2);
+            Canvas.SetTop(apperature, loopTop + (loopDiameter - appDiameter) / 2);
+            canvasArea.Children.Add(apperature);
+        }
+
+        //erase the loop
+        private void removeLoop()
+        {
+            Shape eraser = new System.Windows.Shapes.Rectangle() { Fill = BoatColor, Height = 60, Width = 60, RadiusX = 0, RadiusY = 0 };
+            Canvas.SetRight(eraser, loopRight);
+            Canvas.SetTop(eraser, loopTop);
+            canvasArea.Children.Add(eraser);
+        }
+
+        // draw either stick as consumable or grid stick -- GOOD
+        private void drawSticks()
+        {
+            int stickHeight = gridStickWidth;
+            if (gridPlacementConfig == staggered) stickHeight = (int)(1.5 * gridStickWidth);
+            for (int i = 0; i < numberOfSticks; i++)
+            {
+                Shape stick = new System.Windows.Shapes.Rectangle() { Fill = StickColor, Height = stickHeight, Width = stickWidth, RadiusX = 12, RadiusY = 12 };
+                Canvas.SetLeft(stick, stickLeft);
+                Canvas.SetTop(stick, i * (stickHeight + 5) + stickTop);
+                canvasArea.Children.Add(stick);
+                if (gridPlacementConfig != staggered) drawGridsForGridSticks(i * 50 + 5);
+                else drawGridsForConsSticks();
+            }
+        }
+
+        // draw the grids on the grid sticks
+        private void drawGridsForGridSticks(int top)
+        {
+            double xCanvasPosition, yCanvasPosition;
+            for (int i = 0; i < numberOfGridsPerStick; i++)
+            {
+                xCanvasPosition = 10 + i * 45;
+                yCanvasPosition = top + 5;
+                Shape grid = gridMaker(gridColor);
+
+                Canvas.SetLeft(grid, xCanvasPosition);
+                Canvas.SetTop(grid, yCanvasPosition);
+                canvasArea.Children.Add(grid);
+            }
+        }
+
+        // draw the grids on the consumable sticks
+        private void drawGridsForConsSticks()
+        {
+            double colPosition, colNumber, virtColNum;
+            int stickHeight = (int)(1.5 * gridStickWidth);
+            for (int i = 0; i < totalNumberOfGrids; i++)
+            {
+                double xCanvasPosition = 20 + gridStickWidth / 2;
+                double yCanvasPosition = 15;
+                colPosition = i % numberOfSticks;
+                colNumber = i / numberOfSticks;
+                virtColNum = colNumber;
+                if (colNumber >= (numberOfGridsPerStick / 2))
+                {
+                    xCanvasPosition -= (double)(1.5 * gridStickWidth / 2);
+                    yCanvasPosition += (double)(gridStickWidth / 2);
+                    virtColNum -= numberOfGridsPerStick / 2;
+                }
+                xCanvasPosition += 1.5 * virtColNum * gridStickWidth;
+                yCanvasPosition += colPosition * (stickHeight + 5) - 5;
+                Shape grid = gridMaker(gridColor);
+                Canvas.SetLeft(grid, xCanvasPosition);
+                Canvas.SetTop(grid, yCanvasPosition);
+                canvasArea.Children.Add(grid);
+                labelGrid(xCanvasPosition + 10, yCanvasPosition + 5, (i + sectionStartingNo).ToString(), Colors.Black);
+            }
+        }
+
+        // makes a grid shape
+        public Shape gridMaker(System.Windows.Media.Color color)
+        {
+            Shape grid = new Ellipse() { Height = gridDiameter, Width = gridDiameter };
+            RadialGradientBrush brush = new RadialGradientBrush();
+            brush.GradientStops.Add(new GradientStop(color, 0.250));
+            brush.GradientStops.Add(new GradientStop(color, 0.100));
+            brush.GradientStops.Add(new GradientStop(color, 8));
+            grid.Fill = brush;
+            return grid;
+        }
+
+        //draw the staggered dimension
+        private void drawStaggeredDimensions(double x1, double x2, double y1)
+        {
+            Line stagger = new Line();
+            stagger.X1 = x1;
+            stagger.X2 = x1;
+            stagger.Y1 = y1;
+            stagger.Y2 = 25;
+
+            Line stagInd = new Line();
+            stagInd.X1 = x1;
+            stagInd.X2 = x1 + 30;
+            stagInd.Y1 = 25;
+            stagInd.Y2 = 25;
+            SolidColorBrush redBrush = new SolidColorBrush();
+            redBrush.Color = Colors.DarkRed;
+            stagger.StrokeThickness = 4;
+            stagger.Stroke = redBrush;
+            stagInd.StrokeThickness = 4;
+            stagInd.Stroke = redBrush;
+            stagInd.StrokeDashArray = new DoubleCollection() { 1 };
+            canvasArea.Children.Add(stagger);
+            canvasArea.Children.Add(stagInd);
+            labelGrid((x2 - x1) / 2 + x1 / 2, y1 / 2, (yGridStaggerDisplacement.ToString() + "mm"), Colors.DarkRed);
+        }
+
+        //draw the distances between the grids in x and y
+        private void drawStickDistLines()
+        {
+            double x1 = 28;
+            double y1 = 24;
+            double x2 = 74;
+            double y2 = 74;
+            if (gridPlacementConfig == staggered)
+            {
+                x1 = 28;
+                y1 = 50;
+                x2 = 90;
+                y2 = 122;
+                drawStaggeredDimensions(x1, x2, y1);
+            }
+            Line xLine = new Line();
+            xLine.X1 = x1;
+            xLine.X2 = x2;
+            xLine.Y1 = y1;
+            xLine.Y2 = y1;
+            Line yLine = new Line();
+            yLine.X1 = x1;
+            yLine.X2 = x1;
+            yLine.Y1 = y1;
+            yLine.Y2 = y2;
+            SolidColorBrush greenBrush = new SolidColorBrush();
+            greenBrush.Color = Colors.DarkGreen;
+            SolidColorBrush blueBrush = new SolidColorBrush();
+            blueBrush.Color = Colors.DarkBlue;
+            xLine.StrokeThickness = 4;
+            xLine.Stroke = greenBrush;
+            yLine.StrokeThickness = 4;
+            yLine.Stroke = blueBrush;
+            canvasArea.Children.Add(xLine);
+            canvasArea.Children.Add(yLine);
+            labelGrid((x2 - x1) / 2 + x1 / 2, y1, (xGridDisplacement.ToString() + "mm"), Colors.DarkGreen);
+            labelGrid((x2 - x1) / 2 + x1 / 2, y2 - 10, (yGridDisplacement.ToString() + "mm"), Colors.DarkBlue);
+        }
+
+        //label which section will go where for grid sticks, if the cassette is ideal
+        private void labelGridSticks()
+        {
+            double xGridPlacement = 0;
+            double yGridPlacement = 0;
+            for (int i = 0; i < totalNumberOfGrids; i++)
+            {
+                if (gridPlacementConfig == rowsColConfig)
+                {
+                    xGridPlacement = 18 + (i % numberOfGridsPerStick) * 45;
+                    yGridPlacement = 18 + (i / numberOfGridsPerStick) * 50;
+                }
+                if (gridPlacementConfig == colsRowConfig)
+                {
+                    xGridPlacement = 18 + (i / numberOfSticks) * 45;
+                    yGridPlacement = 18 + (i % numberOfSticks) * 50;
+                }
+                labelGrid(xGridPlacement, yGridPlacement, (i + sectionStartingNo).ToString(), Colors.Black);
+            }
+        }
+
+        // label the grids
+        private void labelGrid(double x, double y, string text, System.Windows.Media.Color color)
+        {
+            TextBlock gridText = new TextBlock();
+            gridText.Text = text;
+            gridText.Foreground = new SolidColorBrush(color);
+            Canvas.SetLeft(gridText, x);
+            Canvas.SetTop(gridText, y);
+            canvasArea.Children.Add(gridText);
+        }
+
+        //
+        private double[] getCanvasPositionForCassettePositionNumber(int cassPosNo)
+        {
+            double[] position = new double[2];
+            switch (gridPlacementConfig)
+            {
+                case rowsColConfig:
+                    position[0] = 10 + (cassPosNo % numberOfGridsPerStick) * 45; //+18
+                    position[1] = 10 + (cassPosNo / numberOfGridsPerStick) * 50; //+18
+                    break;
+                case colsRowConfig:
+                    position[0] = 10 + (cassPosNo / numberOfSticks) * 45;
+                    position[1] = 10 + (cassPosNo % numberOfSticks) * 50;
+                    break;
+                case staggered:
+                    double colPosition, colNumber, virtColNum;
+                    int stickHeight = (int)(1.5 * gridStickWidth);
+                    position[0] = 20 + gridStickWidth / 2;
+                    position[1] = 15;
+                    colPosition = cassPosNo % numberOfSticks;
+                    colNumber = cassPosNo / numberOfSticks;
+                    virtColNum = colNumber;
+                    if (colNumber >= (numberOfGridsPerStick / 2))
+                    {
+                        position[0] -= (double)(1.5 * gridStickWidth / 2);
+                        position[1] += (double)(gridStickWidth / 2);
+                        virtColNum -= numberOfGridsPerStick / 2;
+                    }
+                    position[0] += 1.5 * virtColNum * gridStickWidth;
+                    position[1] += colPosition * (stickHeight + 5) - 5;
+                    break;
+            }
+            return position;
+        }
+
+        private void colorGridAtPositionXY(System.Windows.Media.Color color, double x, double y)
+        {
+            Shape grid = gridMaker(color);
+            Canvas.SetLeft(grid, x);
+            Canvas.SetTop(grid, y);
+            canvasArea.Children.Add(grid);
         }
 
         // ----------------------------------------------------------------------
@@ -529,9 +1340,11 @@ namespace XBoxStage
         private void PollGamepad()
         {
             if ((m_xbox == null) || !m_xbox.IsConnected) return;
+            bool isReadyForNextState = false;
             // Update statuses 
             m_xboxStateLast = m_xboxState;
             m_xboxState = m_xbox.GetState();
+
             LeftLastStateDeadZone = LeftCurrentStateDeadZone;
             RightLastStateDeadZone = RightCurrentStateDeadZone;
             //Update the deadzone status and check for joystick controls
@@ -557,11 +1370,13 @@ namespace XBoxStage
             SimultaneousDownDandXCur = simultaneousButtons(GamepadButtonFlags.DPadDown, GamepadButtonFlags.X);
 
             // Event handlers for buttons being pushed
-            // Classic Buttons
+            // Classic Buttons and Accounting
+            if (bReady && xReady && yReady && m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.Start)) State = PICKING_UP_LOOP_STATE; //Initialization is finished
+            if (State > INITIALIZATION_STATE && !m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.Back) && (LeftCurrentStateDeadZone && RightCurrentStateDeadZone)) isReadyForNextState = true;
             if (buttonPressed(GamepadButtonFlags.A)) OnXBoxGamepadButtonPressA.Invoke(this, null);
-            if ((buttonPressed(GamepadButtonFlags.B) && !m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.Back)) && (LeftCurrentStateDeadZone && RightCurrentStateDeadZone)) OnXBoxGamepadButtonPressB.Invoke(this, null);
-            if ((buttonPressed(GamepadButtonFlags.X) && !m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.Back)) && (LeftCurrentStateDeadZone && RightCurrentStateDeadZone)) OnXBoxGamepadButtonPressX.Invoke(this, null);
-            if ((buttonPressed(GamepadButtonFlags.Y) && !m_xboxState.Gamepad.Buttons.HasFlag(GamepadButtonFlags.Back)) && (LeftCurrentStateDeadZone && RightCurrentStateDeadZone)) OnXBoxGamepadButtonPressY.Invoke(this, null);
+            if (buttonPressed(GamepadButtonFlags.B) && isReadyForNextState) OnXBoxGamepadButtonPressB.Invoke(this, null);
+            if (buttonPressed(GamepadButtonFlags.X) && isReadyForNextState) OnXBoxGamepadButtonPressX.Invoke(this, null);
+            if (buttonPressed(GamepadButtonFlags.Y) && isReadyForNextState) OnXBoxGamepadButtonPressY.Invoke(this, null);
 
             // Left/Right Shoulder Thorlabs device control
             if (buttonPressed(GamepadButtonFlags.RightShoulder) && !simultaneousButtons(GamepadButtonFlags.RightShoulder, GamepadButtonFlags.LeftShoulder))
@@ -576,28 +1391,48 @@ namespace XBoxStage
             // Combos to save positions -- make it have last state too so that it updates once
             if (SimultaneousBackandBCur && !SimultaneousBackandBLast)
             {
+                //assign the int array then the string from it
                 BButtonPosition = zaberGetCurrentPos();
-                loopDropOffCount = 0;
+                bButtonPosition = "(" + Math.Round(stepsToMM("x", BButtonPosition[0]), 3).ToString() + ", " + Math.Round(stepsToMM("y", BButtonPosition[1]), 3).ToString() + ", " + Math.Round(stepsToMM("z", BButtonPosition[2]), 3).ToString() + ")";
+                BBox.Text = bButtonPosition;
+                cassettePositionNumber = 0;
                 bInitialization.IsChecked = true;
+                bReady = true;
+                updateCassette();
+                hideGridParameters();
+                showDataAndCassette();
+                drawBoat();
+                initializationPrompt("x");
             }
             if (SimultaneousBackandXCur && !SimultaneousBackandXLast)
             {
-                XButtonPosition = zaberGetCurrentPos();
+                XButtonPosition = zaberGetCurrentPos(); 
+                xButtonPosition = "(" + Math.Round(stepsToMM("x", XButtonPosition[0]), 3).ToString() + ", " + Math.Round(stepsToMM("y", XButtonPosition[1]), 3).ToString() + ", " + Math.Round(stepsToMM("z", XButtonPosition[2]), 3).ToString() + ")";
+                XBox.Text = xButtonPosition;
                 loopPickUpCount = 0;
                 xInitialization.IsChecked = true;
+                xReady = true;
+                updateCassette();
+                hideGridParameters();
+                showDataAndCassette();
+                drawBoat();
+                initializationPrompt("y");
             }
             if (SimultaneousBackandYCur && !SimultaneousBackandYLast)
             {
                 YButtonPosition = zaberGetCurrentPos();
+                yButtonPosition = "(" + Math.Round(stepsToMM("x", YButtonPosition[0]), 3).ToString() + ", " + Math.Round(stepsToMM("y", YButtonPosition[1]), 3).ToString() + ", " + Math.Round(stepsToMM("z", YButtonPosition[2]), 3).ToString() + ")";
+                YBox.Text = yButtonPosition;
                 yInitialization.IsChecked = true;
+                yReady = true;
             }
 
             // Combos to decrement button counters
-            if (SimultaneousDownDandBCur && !SimultaneousDownDandBLast)
+            if (SimultaneousDownDandBCur && !SimultaneousDownDandBLast && State == PLACING_SECTION_STATE)
             {
                 MoveToLastDropOffPosition.Invoke(this, null);
             }
-            if (SimultaneousDownDandXCur && !SimultaneousDownDandXLast)
+            if (SimultaneousDownDandXCur && !SimultaneousDownDandXLast && State == PICKING_UP_LOOP_STATE)
             {
                 MoveToLastPickUpPosition.Invoke(this, null);
             }
@@ -676,6 +1511,22 @@ namespace XBoxStage
 
             // call GetMotorConfiguration on the device to initialize the DeviceUnitConverter object required for real world unit parameters  
             MotorConfiguration motorSettings = thorDevice.GetMotorConfiguration(serialNo);
+            try
+            {
+                thorDevice.GetSettings(thorDevice.MotorDeviceSettings);
+                if (thorDevice.MotorDeviceSettings.Physical.TravelMode == PhysicalSettings.TravelModes.Linear)
+                {
+                    throw new Exception("Cannot drive a linear motor in continous mode");
+                }
+                thorDevice.MotorDeviceSettings.Rotation.RotationMode = RotationSettings.RotationModes.RotationalUnlimited;
+                thorDevice.SetSettings(thorDevice.MotorDeviceSettings, true, false);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+            }
+            //deviceUnitConverter = thorDevice.UnitConverter; // wtf
+            thorDevice.StartPolling(thorPollRate);
 
             // display info about device     
             DeviceInfo deviceInfo = thorDevice.GetDeviceInfo();
@@ -688,8 +1539,8 @@ namespace XBoxStage
             
             try
             {
-                //device.MoveContinuous(direction);
-                device.MoveRelative(direction, thorDisplacement, 100);
+                device.MoveContinuous(direction);
+                //device.MoveRelative(direction, thorDisplacement, 100);
             }
             catch (Exception e)
             {
@@ -704,6 +1555,7 @@ namespace XBoxStage
             Action<UInt64> workDone = thorDevice.InitializeWaitHandler();
             thorDevice.Stop(workDone);            
             thorDevice.ResumeMoveMessages();
+            //thorDevice.StopImmediate();
         }
         
         // ----------------------------------------------------------------------
@@ -768,9 +1620,10 @@ namespace XBoxStage
             string hallReply = "";
             string thermReply = "";
             string windReply = "";
-
+            string beginningDataStreamMarker = "";
             if (Arduino.IsOpen)
             {
+                beginningDataStreamMarker = Arduino.ReadTo("a");
                 hallReply = Arduino.ReadTo(";");
                 thermReply = Arduino.ReadTo(";");
                 windReply = Arduino.ReadTo(";");
@@ -849,8 +1702,6 @@ namespace XBoxStage
         // Zaber Functions
         // ----------------------------------------------------------------------
         // Initializes the zaber port
-        // Note: currently the objects axisX, axisY, and axisZ are not used
-        // and generally don't play nicely with the rest of the code.
         public void zaberInitialize()
         {
             //Open the Zaber Actuators
@@ -925,8 +1776,7 @@ namespace XBoxStage
         }
 
         // Moves the actuators from the current position(curPos)
-        // to the future position(futPos).  It avoids the programmed in no
-        // fly zones after determing the move sequence.
+        // to the future position(futPos). 
         void zaberMoveStoredPositionOneAtATime(int[] futPos, int[] curPos)
         {
             var axisX = new ZaberAsciiAxis(zaberPort, x_Device, 1); 
@@ -997,23 +1847,36 @@ namespace XBoxStage
             int[] futPos = new int[3];
             int xDisplacementFromOrigin = 0;
             int yDisplacementFromOrigin = 0;
-            int colPosition, colNumber;
-            colPosition = loopDropOffCount % numberOfSticks;
-            colNumber = loopDropOffCount / numberOfSticks;
-            int virtColNum = colNumber;
-            if (colNumber >= numberOfCols)
+            
+            switch (gridPlacementConfig)
             {
-                xDisplacementFromOrigin -= mmToSteps("x", 2.65);
-                yDisplacementFromOrigin += mmToSteps("y", 2.0);
-                virtColNum -= numberOfCols;
+                case rowsColConfig:
+                    xDisplacementFromOrigin = (cassettePositionNumber % numberOfGridsPerStick) * mmToSteps("x", xGridDisplacement);
+                    yDisplacementFromOrigin = (cassettePositionNumber / numberOfGridsPerStick) * mmToSteps("y", yGridDisplacement);
+                    break;
+                case colsRowConfig:
+                    xDisplacementFromOrigin = (cassettePositionNumber / numberOfSticks) * mmToSteps("x", xGridDisplacement);
+                    yDisplacementFromOrigin = (cassettePositionNumber % numberOfSticks) * mmToSteps("y", yGridDisplacement);
+                    break;
+                case staggered:
+                    int colPosition, colNumber;
+                    colPosition = cassettePositionNumber % numberOfSticks;
+                    colNumber = cassettePositionNumber / numberOfSticks;
+                    int virtColNum = colNumber;
+                    if (colNumber >= numberOfCols)
+                    {
+                        xDisplacementFromOrigin -= mmToSteps("x", xGridDisplacement / 2);
+                        yDisplacementFromOrigin += mmToSteps("y", yGridStaggerDisplacement);
+                        virtColNum -= numberOfCols;
+                    }
+                    xDisplacementFromOrigin += virtColNum * mmToSteps("x", xGridDisplacement);
+                    yDisplacementFromOrigin += colPosition * mmToSteps("y", yGridDisplacement);
+                    break;
             }
-            xDisplacementFromOrigin += virtColNum * mmToSteps("x", xGridDisplacement);
-            yDisplacementFromOrigin += colPosition * mmToSteps("y", yGridDisplacement);
             futPos[0] = xDisplacementFromOrigin + BButtonPosition[0];
             futPos[1] = yDisplacementFromOrigin + BButtonPosition[1];
             futPos[2] = BButtonPosition[2];
             zaberMoveStoredPositionAllAtOnce(futPos);
-            if (loopDropOffCount >= totalNumberOfLoops) loopDropOffCount = 0; //reset for next cassette
         }
 
         // Calculates next move for loop pick up and executes it
@@ -1275,6 +2138,5 @@ namespace XBoxStage
 
             return moveSequence;
         }
-
     }
 }
