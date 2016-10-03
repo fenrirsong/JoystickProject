@@ -7,7 +7,7 @@ I took code written by @jaybo and modified it so that I have an XBox controller 
 
 This project uses a timer to poll the gamepad.
 
-The joysticks map to an exponential function when outside of the deadzone for their respective joystick.  This function is (e^(a*x)-1)/e^a, where a = joystickVelocityModulator.  Experience has shown that a value of "1.2" works well for our purposes.  
+The joysticks map to an exponential function when outside of the deadzone for their respective joystick.  This function is (e^(a*x)-1)/e^a, where a = joystickVelocityModulator.  Experience has shown that a value of "1.05" works well for our purposes.  
 
 Currently, there is a function for attempting to avoid no-fly zones(areas where our actuators will run into other equipment).  If the equipment can move along each axis sequentially, for a total of 3 moves or less, to another valid position, it will do so.  This function does *not* move the equipment to the opposite side of obstacles.  The function tries each permutation of moves in order to determine the move sequence. Each of the obstacles needs to be hardcoded in as a rectangular NoFlyZone structure.  I'm not currently implementing it because there's little motion in the Z direction, and a limited range that my save buttons go between.
 
