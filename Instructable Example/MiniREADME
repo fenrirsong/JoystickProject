@@ -1,7 +1,0 @@
-To operate: 
-1) Plug in resistorified LED into GND.  
-2) Plug in resistorified LED into pin 12.  
-3) Hit "upload" in the arduino IDE.
-4) Open WindowsFormsApplication2.sln
-5) Hit play button under Debug
-6) Play with buttons!
