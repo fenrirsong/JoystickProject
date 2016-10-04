@@ -21,5 +21,23 @@ Currently, there is a function for attempting to avoid no-fly zones(areas where 
 The save position buttons need to be initialized.  You do this by hitting the XBox gamepad's "Back" button + B, X, or Y.  B is designated at the ""  Hitting these buttons before initialization currently homes the Zaber actuators. 
 
 ###Software Description###
-####Finite State Machine
-Implementing a finite state machine allows for automated record keeping, and increased automation of loop drop off and pick up locations.  To begin the process,  the Initialization State (state 0), requires the Position Recall buttons to be initialized.  To move to the next state, the "Start" button needs to be pressed on the XBox controller.  
+####Getting Up and Running
+
+####Finite State Machine and Operational Use
+Implementing a finite state machine allows for automated record keeping, and increased automation of loop drop off and pick up locations.  To begin the process,  the "Initialization State" (state 0), requires the position recall buttons to be initialized.  To move to the next state, the "Start" button needs to be pressed on the XBox controller.  
+
+*Going to Pick up a Loop State*:  Pressing "Start" after initialization of the position recall buttons bring you to the "Picking up Loop State" (state 1).  I've written my code such that it expects columns of 10 loops, with handles pointing to the left, arranged in a staggered position, such that the one furthest and left from the operator is the 0th position.  To see this refer to a figure coming to you soon *Insert Figure here*.
+
+*Staying in the Pick up Loop State*:  Sometimes advancing to the next loop is necessary because loop pick up doesn't always go exactly as planned.  Maybe the handle got oriented a different direction while you were trying to pick it up.  No worries, hit the "X" Button again, and it'll take you to the next loop.  Sometimes you accidentally advance past a perfectly good loop.  Again, don't worry, press the D-Pad's "Down" button and the "X" button simultaneously and it will bring you back to the last loop.
+
+*Going to Picking up Section State*:  After picking up a loop, you will now want to pick up a section.  Pressing the "Y" button will bring you to the "Picking up Section State" (state 2).  Here, the actuators bring you to the boat where the section is floating.  Use the right joystick to lower the loop into the water surrounding the section.  Use the right joystick again to move the loop and section out of the water.
+
+*Staying in the Pick up Section State*:
+
+*Returning to the Pick up Loop State*:
+
+*Going to Placing Section State*:
+
+*Staying in Placing Section State*: Broken Film, Accidental advancement
+
+*Going to Picking up Loop State*: Great!  You've successfully placed a section down on your grid and you're ready to pick up more.  Press the "X" button to go to your next loop to pick up.  During this step, the recording of which position which section is at will be recorded to a file associated with the current time and date. 
