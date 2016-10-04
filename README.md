@@ -21,5 +21,5 @@ Currently, there is a function for attempting to avoid no-fly zones(areas where 
 The save position buttons need to be initialized.  You do this by hitting the XBox gamepad's "Back" button + B, X, or Y.  B is designated at the ""  Hitting these buttons before initialization currently homes the Zaber actuators. 
 
 ###Software Description###
-####Finite State Machine#### 
+####Finite State Machine
 Implementing a finite state machine allows for automated record keeping, and increased automation of loop drop off and pick up locations.  To begin the process,  the Initialization State (state 0), requires the Position Recall buttons to be initialized.  To move to the next state, the "Start" button needs to be pressed on the XBox controller.  
