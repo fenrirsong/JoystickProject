@@ -26,10 +26,14 @@ Assuming that you're running Windows, C\# works pretty well.
 
 *Connecting the Zaber and Arduino in the software*    My Zaber port is on COM5. My Arduino port is on COM6.  You can go ahead and plug you Zaber devices in a daisy chain, and into the computer, and find with COM port your actuators are on by going to Control Panel -> Device Manager -> Ports (COM & LPT).  It should be listed there.  You'll need to make sure that your COM port for the Zaber and Arduino match what's in the code.
 
-*Connectin the Thorlabs in software*    Take a look on the back of your KCube DC servo.  There should be a serial number there.  To make the code specific to your servo, change the line of code in the beginning "puclib string serialNo = "27000117"" to whatever your serialNo is.
+*Loading Arduino sketch*    Be sure to load the Arduino sketch, WindHallAirTempV2.0.ino to your Arduino board, with the appropriate pins connected to your sensors and solenoid.  To make sure everything is reading correctly, open the Serial Monitor under the Tools menu in the Arduino IDE.  You should see 3 different numbers separated by semicolons (';') and an 'a' every 3rd number.  This is what is read in by the C\# portion of the code to make the Live-Charts you will see while sectioning.  Enter 'a' to tell the Arduino to allow current to flow to the solenoid.  If this works, then your Arduino should be correctly setup.
+
+*Connecting the Thorlabs in software*    Take a look on the back of your KCube DC servo.  There should be a serial number there.  To make the code specific to your servo, change the line of code in the beginning "puclib string serialNo = "27000117"" to whatever your serialNo is.
 
 ####Finite State Machine and Operational Use
-Implementing a finite state machine allows for automated record keeping, and increased automation of loop drop off and pick up locations.  To begin the process,  the "Initialization State" (state 0), requires the position recall buttons to be initialized.  To move to the next state, the "Start" button needs to be pressed on the XBox controller.  
+Implementing a finite state machine allows for automated record keeping, and increased automation of loop drop off and pick up locations.  
+
+*Starting "Initialization State"*:    To begin the process,  the "Initialization State" (state 0), requires the position recall buttons to be initialized.  To move to the next state, the "Start" button needs to be pressed on the XBox controller.  
 
 *Going to "Pick up a Loop State"*:  Pressing "Start" after initialization of the position recall buttons bring you to the "Picking up Loop State" (state 1).  I've written my code such that it expects columns of 10 loops, with handles pointing to the left, arranged in a staggered position, such that the one furthest and left from the operator is the 0th position.  To see this refer to a figure coming to you soon *Insert Figure here*.
 
@@ -47,4 +51,4 @@ Implementing a finite state machine allows for automated record keeping, and inc
 
 *Going to "Picking up Loop State"*:   Great!  You've successfully placed a section down on your grid and you're ready to pick up more.  Press the "X" button to go to your next loop to pick up.  During this step, the recording of which position which section is at will be recorded to a file associated with the current time and date.  Once again, you'll have the ability to advance or to back up to the previous loop position.
 
-*"Going to "Picking up Loop State" at End of Cassette*:    After you've cycled through all the positions for your particular setup, the GUI will ask you if you want to continue to the next cassette.  It assumes that the next cassette will have the same configuration as your current one.  Regardless of what you select, it will record to file a picture of your recently finished cassette.  If you select "No" at this state, it will exit the program.
+*"Going to "Picking up Loop State" at End of Cassette*:    After you've cycled through all the positions for your particular setup, the GUI will ask you if you want to continue to the next cassette.  It assumes that the next cassette will have the same configuration as your current one.  Regardless of what you select, it will record to file a picture of your recently finished cassette.  If you select "No" at this point, it will exit the program.
