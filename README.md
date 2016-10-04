@@ -22,6 +22,11 @@ The save position buttons need to be initialized.  You do this by hitting the XB
 
 ###Software Description###
 ####Getting Up and Running
+Assuming that you're running Windows, C\# works pretty well.
+
+*Connecting the Zaber and Arduino in the software*    My Zaber port is on COM5. My Arduino port is on COM6.  You can go ahead and plug you Zaber devices in a daisy chain, and into the computer, and find with COM port your actuators are on by going to Control Panel -> Device Manager -> Ports (COM & LPT).  It should be listed there.  You'll need to make sure that your COM port for the Zaber and Arduino match what's in the code.
+
+*Connectin the Thorlabs in software*    Take a look on the back of your KCube DC servo.  There should be a serial number there.  To make the code specific to your servo, change the line of code in the beginning "puclib string serialNo = "27000117"" to whatever your serialNo is.
 
 ####Finite State Machine and Operational Use
 Implementing a finite state machine allows for automated record keeping, and increased automation of loop drop off and pick up locations.  To begin the process,  the "Initialization State" (state 0), requires the position recall buttons to be initialized.  To move to the next state, the "Start" button needs to be pressed on the XBox controller.  
