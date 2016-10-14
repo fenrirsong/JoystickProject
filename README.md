@@ -39,7 +39,9 @@ Once the initialization is finished, the rest of the FSM can begin.  Below is a 
 
 Below is annotated picture of the XBox controller describing what each of the buttons do
 ![alt tag](https://github.com/fenrirsong/JoystickProject/blob/master/annotatedXBox.png)
+
 ![alt tag](https://github.com/fenrirsong/JoystickProject/blob/master/annotatedXBoxBack.png)
+
 *Going to "Pick up a Loop State"*:  Pressing "Start" after initialization of the position recall buttons bring you to the "Picking up Loop State" (state 1).  I've written my code such that it expects columns of 10 loops, with handles pointing to the left, arranged in a staggered position, such that the one furthest and left from the operator is the 0th position.  To see this refer to a figure coming to you soon *Insert Figure here*.
 
 *Staying in the "Pick up Loop State"*:  Sometimes advancing to the next loop is necessary because loop pick up doesn't always go exactly as planned.  Maybe the handle got oriented a different direction while you were trying to pick it up.  No worries, hit the "X" Button again, and it'll take you to the next loop.  Sometimes you accidentally advance past a perfectly good loop.  Again, don't worry, press the D-Pad's "Down" button and the "X" button simultaneously and it will bring you back to the last loop.
