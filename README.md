@@ -34,6 +34,9 @@ Assuming that you're running Windows, C\# works pretty well.
 Implementing a finite state machine allows for automated record keeping, and increased automation of loop drop off and pick up locations.  
 
 *Starting "Initialization State"*:    To begin the process,  the "Initialization State" (state 0), requires the position recall buttons to be initialized.  To move to the next state, the "Start" button needs to be pressed on the XBox controller.  
+Once the initialization is finished, the rest of the FSM can begin.  Below is a diagram of the FSM after initialization.
+![alt tag](https://github.com/fenrirsong/JoystickProject/blob/master/colorCodedFSM.png)
+
 
 *Going to "Pick up a Loop State"*:  Pressing "Start" after initialization of the position recall buttons bring you to the "Picking up Loop State" (state 1).  I've written my code such that it expects columns of 10 loops, with handles pointing to the left, arranged in a staggered position, such that the one furthest and left from the operator is the 0th position.  To see this refer to a figure coming to you soon *Insert Figure here*.
 
