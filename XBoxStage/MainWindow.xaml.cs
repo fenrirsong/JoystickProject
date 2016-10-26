@@ -27,13 +27,6 @@ using LiveCharts.Configurations;
 
 using SharpDX.XInput; 
 
-using Thorlabs.MotionControl.DeviceManagerCLI; 
-using Thorlabs.MotionControl.GenericMotorCLI; 
-using Thorlabs.MotionControl.GenericMotorCLI.ControlParameters; 
-using Thorlabs.MotionControl.GenericMotorCLI.AdvancedMotor;
-using Thorlabs.MotionControl.GenericMotorCLI.Settings;
-using Thorlabs.MotionControl.KCube.DCServoCLI;
-
 using Zaber; 
 using Zaber.PlugIns;
 using Zaber.Serial.Core;
@@ -121,14 +114,8 @@ namespace XBoxStage
         public bool yReady;
         public int loopPickUpCount; //counter for loop being picked up
 
-        // Thorlabs Actuator (serial number provided is specific to my device)
-        public KCubeDCServo thorDevice;
-        public string serialNo = "27000117";
-        public int thorPollRate = 20;
-        public decimal thorDisplacement = 1m;
-
         // Arduino and sensor output stuff -- use the sketch WindHallAirTempV2.0.ino
-        // to control the Thorlabs and solenoid air puffer
+        // solenoid air puffer
         public SerialPort Arduino = new SerialPort();
 
         // Zaber
@@ -138,9 +125,11 @@ namespace XBoxStage
         public const int x_Device = 2;
         public const int y_Device = 3;
         public const int z_Device = 4;
+        public const int grab_Device = 5;
         int MAX_X_SPEED = mmToSteps("x", 20.0);
         int MAX_Y_SPEED = mmToSteps("y", 20.0);
         int MAX_Z_SPEED = mmToSteps("z", 10.0);
+        int MAX_GRAB_SPEED = mmToSteps("g", 8.0);
         public ZaberAsciiPort zaberPort;
         public int[] curPos = new int[3];
         public int[] XButtonPosition = new int[3];
@@ -198,16 +187,6 @@ namespace XBoxStage
         // ----------------------------------------------------------------------
         // Computer Actions
         // ----------------------------------------------------------------------
-        // Play a sound located in resource file where soundFileName = "mysound.wav"
-        void playSound(string soundFileName)
-        {
-            SoundPlayer sound = new SoundPlayer();
-            sound.SoundLocation = resourcePathRoot + soundFileName;
-            sound.Play();
-            sound.Dispose();
-            return;
-        }
-
         //Record one of the position button presses
         void recordButtonPress(string button)
         {
@@ -295,11 +274,10 @@ namespace XBoxStage
         // Events to execute on program closing 
         void MainWindow_Closing(object sender, CancelEventArgs e)
         {
-            thorDevice.StopPolling();
-            thorDevice.Disconnect();
             zaberStop(x_Device);
             zaberStop(y_Device);
             zaberStop(z_Device);
+            zaberStop(grab_Device);
             zaberPort.Close();
             Arduino.Close();
             m_xbox = null;
@@ -384,12 +362,8 @@ namespace XBoxStage
             InitializeComponent();
 
             //Initialize Controlled Parts
-            thorInitialize();
             arduinoInitialize();
             zaberInitialize();
-
-            //Start thorDevice polling
-            thorDevice.StartPolling(thorPollRate);
 
             //Initialize counters for pick up and drop off
             State = INITIALIZATION_STATE;
@@ -523,8 +497,7 @@ namespace XBoxStage
                 zaberStop(x_Device);
                 zaberStop(y_Device);
                 zaberStop(z_Device);
-                thorDevice.StopImmediate();
-                playSound("buzzer.wav");
+                zaberStop(grab_Device);
             };
 
             OnXBoxGamepadButtonPressB += (s, e) => //Button B places the loops
@@ -1378,15 +1351,29 @@ namespace XBoxStage
             if (buttonPressed(GamepadButtonFlags.X) && isReadyForNextState) OnXBoxGamepadButtonPressX.Invoke(this, null);
             if (buttonPressed(GamepadButtonFlags.Y) && isReadyForNextState) OnXBoxGamepadButtonPressY.Invoke(this, null);
 
-            // Left/Right Shoulder Thorlabs device control
+            // Left/Right Shoulder controls zaber grabber device for grabbing loops
             if (buttonPressed(GamepadButtonFlags.RightShoulder) && !simultaneousButtons(GamepadButtonFlags.RightShoulder, GamepadButtonFlags.LeftShoulder))
             {
-                thorMove(thorDevice, MotorDirection.Forward);
+                //actuonixMove(forward, trigVal);
+                double grabSpeed = ((double)m_xboxState.Gamepad.RightTrigger / 255) * MAX_GRAB_SPEED;
+                zaberMoveVelocity(grab_Device, grabSpeed);
             }
             if (buttonPressed(GamepadButtonFlags.LeftShoulder) && !simultaneousButtons(GamepadButtonFlags.LeftShoulder, GamepadButtonFlags.RightShoulder))
             {
-                thorMove(thorDevice, MotorDirection.Backward);
+                //actuonixMove(backward, trigVal);
             }
+
+            // Left/Right Triggers to control Actuonix device for grabbing loops
+            /*if (m_xboxState.Gamepad.RightTrigger != 0 && m_xboxState.Gamepad.LeftTrigger == 0)
+            {
+                int[] commands = { 1, (int)m_xboxState.Gamepad.RightTrigger };
+                writeToArduino(commands);
+            }
+            if (m_xboxState.Gamepad.LeftTrigger != 0 && m_xboxState.Gamepad.RightTrigger == 0)
+            {
+                int[] commands = { 3, (int)m_xboxState.Gamepad.LeftTrigger };
+                writeToArduino(commands);
+            }*/
 
             // Combos to save positions -- make it have last state too so that it updates once
             if (SimultaneousBackandBCur && !SimultaneousBackandBLast)
@@ -1440,125 +1427,6 @@ namespace XBoxStage
         }
 
         // ----------------------------------------------------------------------
-        // Thorlabs KCube DC Servo Functions
-        // ----------------------------------------------------------------------
-        public void thorInitialize()
-        {
-            // Open Thorlabs Actuator
-            try
-            {
-                DeviceManagerCLI.BuildDeviceList();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Exception raised by BuildDeviceList {0}", ex);
-                Console.ReadKey();
-                return;
-            }
-
-            // Get available KCube DC Servo and check if serial number is correct
-            DeviceManagerCLI.BuildDeviceList();
-            List<string> serialNumbers = DeviceManagerCLI.GetDeviceList(KCubeDCServo.DevicePrefix);
-            int devicesCount = serialNumbers.Count();
-            string devices = string.Join(",", serialNumbers.ToArray());
-            Console.WriteLine("Number of devices found \"{0}\"", devicesCount);
-            Console.WriteLine("devices found \"{0}\"", devices);
-            if (devices == "") Console.WriteLine("No thor device found!!");
-            if (!serialNumbers.Contains(serialNo))
-            {
-                // the requested serial number is not a TBD001 or is not connected
-                Console.WriteLine("{0} is not a valid serial number", serialNo);
-                Console.ReadKey();
-                return;
-            }
-
-            // create the device
-            thorDevice = KCubeDCServo.CreateKCubeDCServo(serialNo);
-            if (thorDevice == null)
-            {
-                // an error occured
-                Console.WriteLine("{0} is not a KCube DC Servo", serialNo);
-                Console.ReadKey();
-                return;
-            }
-
-            // open a connection to the device.
-            try
-            {
-                Console.WriteLine("Opening device {0}", serialNo);
-                thorDevice.Connect(serialNo);
-            }
-            catch (Exception)
-            {
-                Console.WriteLine("Failed to open device {0}", serialNo);
-                Console.ReadKey();
-                return;
-            }
-
-            // wait for the device settings to initialize      
-            if (!thorDevice.IsSettingsInitialized())
-            {
-                try
-                {
-                    thorDevice.WaitForSettingsInitialized(5000);
-                    if (thorDevice.IsSettingsInitialized()) Console.WriteLine("ThorDevice Should be Initialized");
-                }
-                catch (Exception)
-                {
-                    Console.WriteLine("Settings failed to initialize");
-                }
-            }
-
-            // call GetMotorConfiguration on the device to initialize the DeviceUnitConverter object required for real world unit parameters  
-            MotorConfiguration motorSettings = thorDevice.GetMotorConfiguration(serialNo);
-            try
-            {
-                thorDevice.GetSettings(thorDevice.MotorDeviceSettings);
-                if (thorDevice.MotorDeviceSettings.Physical.TravelMode == PhysicalSettings.TravelModes.Linear)
-                {
-                    throw new Exception("Cannot drive a linear motor in continous mode");
-                }
-                thorDevice.MotorDeviceSettings.Rotation.RotationMode = RotationSettings.RotationModes.RotationalUnlimited;
-                thorDevice.SetSettings(thorDevice.MotorDeviceSettings, true, false);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex);
-            }
-            //deviceUnitConverter = thorDevice.UnitConverter; // wtf
-            thorDevice.StartPolling(thorPollRate);
-
-            // display info about device     
-            DeviceInfo deviceInfo = thorDevice.GetDeviceInfo();
-            Console.WriteLine("Device {0} = {1}", deviceInfo.SerialNumber, deviceInfo.Name);
-
-        }
-
-        public void thorMove(IGenericAdvancedMotor device, MotorDirection direction)
-        {
-            
-            try
-            {
-                device.MoveContinuous(direction);
-                //device.MoveRelative(direction, thorDisplacement, 100);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(Convert.ToString(e));
-                Console.WriteLine("Failed to move to position");
-                return;
-            }
-        }
-
-        public void thorStop()
-        {
-            Action<UInt64> workDone = thorDevice.InitializeWaitHandler();
-            thorDevice.Stop(workDone);            
-            thorDevice.ResumeMoveMessages();
-            //thorDevice.StopImmediate();
-        }
-        
-        // ----------------------------------------------------------------------
         // Arduino Functions
         // ----------------------------------------------------------------------
         // arduinoInitialize() opens the connection to the arduino
@@ -1570,12 +1438,13 @@ namespace XBoxStage
         }
 
         // writeToArduino writes a command to the arduino
-        void writeToArduino(string command)
+        void writeToArduino(int[] command)
         {
+            byte[] sendbytes = command.Select(x => (byte)x).ToArray();
             //Send Trigger value to arduino
             if (Arduino.IsOpen)
             {
-                Arduino.Write(command);
+                Arduino.Write(sendbytes, 0, sendbytes.Length);
             }
         }
 
@@ -1725,6 +1594,9 @@ namespace XBoxStage
                 case z_Device:
                     maxspeed = MAX_Z_SPEED;
                     break;
+                case grab_Device:
+                    maxspeed = MAX_GRAB_SPEED;
+                    break;
                 default:
                     Console.WriteLine("Default device passed - not moving anything");
                     return;
@@ -1734,6 +1606,7 @@ namespace XBoxStage
             double percentOfMaxVelocityToMove = (Math.Exp(joystickVelocityModulator * Math.Abs(percentToMoveDirectionOfTotal)) - 1) / Math.Exp(joystickVelocityModulator);
             double speed = percentOfMaxVelocityToMove * maxspeed;
             int vel = (percentToMoveDirectionOfTotal > 0) ? Convert.ToInt32(speed) : Convert.ToInt32(-speed);
+            if (device == grab_Device) vel = Convert.ToInt32(percentToMoveDirectionOfTotal); //just make the grabber linear
             string command = "";
             command = "/" + device + " 1 move vel " + Convert.ToString(vel) + "\r\n";
             zaberPort.Write(command);
@@ -1952,6 +1825,9 @@ namespace XBoxStage
                 case "z":
                     microStepSize = 0.000248046875; //in mm
                     break;
+                case "g":
+                    microStepSize = 0.000047625;
+                    break;
                 default:
                     Console.WriteLine("Axis selected does not exist");
                     return 0;
@@ -1979,6 +1855,10 @@ namespace XBoxStage
                 // Z Axis is a X-LSQ150B Zaber Actuator
                 case "z":
                     microStepSize = 0.00049609375; //in mm
+                    break;
+                // Grabber is a T-NA08A50 Zaber Actuator
+                case "g":
+                    microStepSize = 0.000047625; //in mm
                     break;
                 default:
                     Console.WriteLine("Axis selected does not exist");
