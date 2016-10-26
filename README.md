@@ -1,6 +1,6 @@
 # JoystickProject #
 
-The purpose of this project is to decrease the time taken in ultramicrotome sectioning by increasing automation of the process.  In our setup, we have an Arduino, 3 Zaber actuators, and 1 Thorlabs actuator.  In the first version of this project, the Arduino controls a solenoid valve that acts as a binary blower(off/on), and reads from sensors to get environment information.  The Zaber actuators are daisy chained to make a pair of tweezers move in x,y,z directions, while the Thorlabs actuator is used to open and close the tweezers for grabbing purposes.
+The purpose of this project is to decrease the time taken in ultramicrotome sectioning by increasing automation of the process.  In our setup, we have an Arduino, and 4 Zaber actuators.  In this version of the project, the Arduino controls a solenoid valve that acts as a binary blower(off/on), and reads from sensors to get environment information.  The Zaber actuators are daisy chained to make a pair of tweezers move in x,y,z directions, while an additional Zaber actuator is used to open and close the forecepts for grabbing purposes.
 
 ##XBoxStage##
 I took code written by @jaybo and modified it so that I have an XBox controller controlling my Arduino (Uno on COM5 at baud = 9600), and Zaber actuators(on COM6, baudrate = 9600).  I use a WPF in Visual Studio C#.  This project depends on SharpDX.XInput, Zaber, Zaber.Serial.Core (http://zaber.com/software/zaber-core-serial-csharp-v1.2.zip), and Live-Charts (@beto-rodriguez https://github.com/beto-rodriguez/Live-Charts).
