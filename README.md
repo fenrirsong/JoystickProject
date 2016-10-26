@@ -3,7 +3,7 @@
 The purpose of this project is to decrease the time taken in ultramicrotome sectioning by increasing automation of the process.  In our setup, we have an Arduino, 3 Zaber actuators, and 1 Thorlabs actuator.  In the first version of this project, the Arduino controls a solenoid valve that acts as a binary blower(off/on), and reads from sensors to get environment information.  The Zaber actuators are daisy chained to make a pair of tweezers move in x,y,z directions, while the Thorlabs actuator is used to open and close the tweezers for grabbing purposes.
 
 ##XBoxStage##
-I took code written by @jaybo and modified it so that I have an XBox controller controlling my Arduino (Uno on COM5 at baud = 9600), Zaber actuators(on COM6, baudrate = 9600), and Thorlabs actuator controlled by a Thorlabs KCube DCServo.  I use a WPF in Visual Studio C#.  This project depends on SharpDX.XInput, Thorlabs.MotionControl.DeviceManager, Thorlabs.MotionControl.GenericMotor, Thorlabs.MotionControl.KCube.DCServo (http://www.thorlabs.us/Software/Motion%20Control/KINESIS/Application/KINESIS%20Install%20x64/setup.exe), Zaber, Zaber.Serial.Core (http://zaber.com/software/zaber-core-serial-csharp-v1.2.zip), and Live-Charts (@beto-rodriguez https://github.com/beto-rodriguez/Live-Charts).
+I took code written by @jaybo and modified it so that I have an XBox controller controlling my Arduino (Uno on COM5 at baud = 9600), and Zaber actuators(on COM6, baudrate = 9600).  I use a WPF in Visual Studio C#.  This project depends on SharpDX.XInput, Zaber, Zaber.Serial.Core (http://zaber.com/software/zaber-core-serial-csharp-v1.2.zip), and Live-Charts (@beto-rodriguez https://github.com/beto-rodriguez/Live-Charts).
 
 The GUI guides you through your grid setup by allowing you to choose which configuration of loop drop off you'd like, giving you n x m options for a staggered configuration, row configuration, or vertical configuration.  Once you've chosen the configuration that you'd like, you need to save the initial positions for the B (loop pickup), X (loop dropoff), Y (section pickup) buttons. 
 
@@ -12,11 +12,8 @@ Implementing Live-Chart, I've been able to add live feedback from the Arduino se
 
 WindHallAirTempV2.0 is the Arduino .ino file that controls the Air puffer (Wind) reads from Hall Effect sensor, Air current, and Temperature.
 
-###Thorlabs Component Setup###
-KCube DC Servo controls a Thorlabs actuator.  This component will be replaced in a future version as it does *not* have the functionality advertised for the product available in for C# WPF applications.
-
 ###Zaber Component Setup###
-Currently, there is a function for attempting to avoid no-fly zones(areas where our actuators will run into other equipment).  If the equipment can move along each axis sequentially, for a total of 3 moves or less, to another valid position, it will do so.  This function does *not* move the equipment to the opposite side of obstacles.  The function tries each permutation of moves in order to determine the move sequence. Each of the obstacles needs to be hardcoded in as a rectangular NoFlyZone structure.  I'm not currently implementing it because there's little motion in the Z direction, and a limited range that my save buttons go between.
+Currently, there is a function for attempting to avoid no-fly zones(areas where our actuators will run into other equipment).  If the equipment can move along each axis sequentially, for a total of 3 moves or less, to another valid position, it will do so.  This function does *not* move the equipment to the opposite side of obstacles.  The function tries each permutation of moves in order to determine the move sequence. Each of the obstacles needs to be hardcoded in as a rectangular NoFlyZone structure.  I'm not currently implementing it because there's little motion in the Z direction, and a limited range that my save buttons go between.  It's also computationally more expensive, so I just hope that the end user doesn't have obstacles between their saved positions.
 
 The save position buttons need to be initialized.  You do this by hitting the XBox gamepad's "Back" button + B, X, or Y.  B is designated at the ""  Hitting these buttons before initialization currently homes the Zaber actuators. 
 
@@ -24,11 +21,9 @@ The save position buttons need to be initialized.  You do this by hitting the XB
 ####Getting Up and Running
 Assuming that you're running Windows, C\# works pretty well.
 
-*Connecting the Zaber and Arduino in the software*    My Zaber port is on COM5. My Arduino port is on COM6.  You can go ahead and plug you Zaber devices in a daisy chain, and into the computer, and find with COM port your actuators are on by going to Control Panel -> Device Manager -> Ports (COM & LPT).  It should be listed there.  You'll need to make sure that your COM port for the Zaber and Arduino match what's in the code.
+*Connecting the Zaber and Arduino in the software*    My Zaber port is on COM5. My Arduino port is on COM6.  You can go ahead and plug you Zaber devices in a daisy chain, and into the computer, and find with COM port your actuators are on by going to Control Panel -> Device Manager -> Ports (COM & LPT).  It should be listed there.  You'll need to make sure that your COM port for the Zaber and Arduino match what's in the code.  My Zaber devices are chained such that 1 is the joystick, 2 is the x-axis, 3 is the y-axis, 4 is the z-axis, and 5 is the grabber.
 
 *Loading Arduino sketch*    Be sure to load the Arduino sketch, WindHallAirTempV2.0.ino to your Arduino board, with the appropriate pins connected to your sensors and solenoid.  To make sure everything is reading correctly, open the Serial Monitor under the Tools menu in the Arduino IDE.  You should see 3 different numbers separated by semicolons (';') and an 'a' every 3rd number.  This is what is read in by the C\# portion of the code to make the Live-Charts you will see while sectioning.  Enter 'a' to tell the Arduino to allow current to flow to the solenoid.  If this works, then your Arduino should be correctly setup.
-
-*Connecting the Thorlabs in software*    Take a look on the back of your KCube DC servo.  There should be a serial number there.  To make the code specific to your servo, change the line of code in the beginning "puclib string serialNo = "27000117"" to whatever your serialNo is.
 
 ####Finite State Machine and Operational Use
 Implementing a finite state machine allows for automated record keeping, and increased automation of loop drop off and pick up locations.  
